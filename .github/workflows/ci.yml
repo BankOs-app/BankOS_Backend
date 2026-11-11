@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  # 1. Escaneo de secretos (Gitleaks)
+  # 1. Escaneo de secretos (Gitleaks Open Source - Sin restricción de licencia)
   secret-scan:
     runs-on: ubuntu-latest
     steps:
@@ -15,10 +15,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verificar que no haya credenciales
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Instalar Gitleaks
+        run: |
+          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz
+          tar -xzf gitleaks_8.18.4_linux_x64.tar.gz
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Escaneo de secretos con Gitleaks
+        run: gitleaks detect --verbose --redact
 
   # 2. Compilación, Linter y Pruebas técnicas (NestJS + TypeScript)
   test:
@@ -32,14 +36,13 @@ jobs:
         with:
           node-version: 20
 
-      - name: Instalar dependencias
-        run: npm install
-
-      - name: Linter (ESLint)
-        run: npm run lint --if-present
-
-      - name: Validar compilación de TypeScript
-        run: npm run build --if-present
-
-      - name: Pruebas unitarias (Jest)
-        run: npm run test --if-present
+      - name: Compilación, Linter y Pruebas
+        run: |
+          if [ -f "package.json" ]; then
+            npm install
+            npm run lint --if-present
+            npm run build --if-present
+            npm test --if-present
+          else
+            echo "Aviso: package.json aún no existe. Se activará automáticamente cuando inicialices NestJS."
+          fi
