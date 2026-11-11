@@ -1,9 +1,11 @@
 name: Auto Assign
+
 on:
   issues:
     types: [opened]
   pull_request:
     types: [opened]
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -11,9 +13,16 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-    - name: 'Auto-assign issue'
-      uses: pozil/auto-assign-issue@v1
-      with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          assignees: LuiguiGarizado
-          numOfAssignee: 1
+      - name: Auto-assign issue or PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.payload.issue
+              ? context.payload.issue.number
+              : context.payload.pull_request.number;
+            await github.rest.issues.addAssignees({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number,
+              assignees: ['LuiguiGarizado']
+            });
