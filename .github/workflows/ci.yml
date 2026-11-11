@@ -1,0 +1,45 @@
+name: Backend CI - NestJS & TypeScript
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # 1. Escaneo de secretos (Gitleaks)
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar que no haya credenciales
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 2. Compilación, Linter y Pruebas técnicas (NestJS + TypeScript)
+  test:
+    needs: secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Linter (ESLint)
+        run: npm run lint --if-present
+
+      - name: Validar compilación de TypeScript
+        run: npm run build --if-present
+
+      - name: Pruebas unitarias (Jest)
+        run: npm run test --if-present

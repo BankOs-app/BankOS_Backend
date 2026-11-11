@@ -1,0 +1,24 @@
+# =========================
+# NestJS + TypeScript - .gitignore
+# =========================
+
+# Dependencias
+node_modules/
+
+# Compilación TypeScript (NestJS)
+dist/
+
+# Credenciales y variables de entorno (Secretos)
+.env*
+!.env.example
+
+# Logs y pruebas
+logs/
+*.log
+coverage/
+
+# Editores y Sistema Operativo
+.vscode/
+.idea/
+*.iml
+.DS_Store
