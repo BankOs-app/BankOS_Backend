@@ -9,6 +9,17 @@ import {
 import { tenantsTable } from './tenants.schema';
 import { customersTable } from './users-customers.schema';
 
+/**
+ * Tabla de Cuentas Bancarias (`accounts`).
+ *
+ * Representa cuentas monetarias asociadas a un cliente y a un banco (tenant):
+ * - Moneda ISO 4217 (COP, USD, EUR).
+ * - Balance con precisión fija numeric(18, 2).
+ * - Estados de cuenta: ACTIVE, BLOCKED, INACTIVE (Soft Delete).
+ * - Índice único compuesto `accounts_tenant_number_idx` sobre (tenant_id, account_number)
+ *   que garantiza que los números de cuenta no se repitan dentro del mismo banco,
+ *   permitiendo que distintos bancos manejen sus propias secuencias de cuentas sin colisionar.
+ */
 export const accountsTable = pgTable(
   'accounts',
   {
@@ -41,4 +52,6 @@ export const accountsTable = pgTable(
 );
 
 export type AccountRecord = typeof accountsTable.$inferSelect;
+export type NewAccountRecord = typeof accountsTable.$inferInsert;
+
 
