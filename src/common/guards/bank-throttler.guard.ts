@@ -37,3 +37,4 @@ export class BankThrottlerGuard extends ThrottlerGuard {
     return 'Límite de peticiones alcanzado. Por favor, espere un momento antes de volver a intentar.';
   }
 }
+
