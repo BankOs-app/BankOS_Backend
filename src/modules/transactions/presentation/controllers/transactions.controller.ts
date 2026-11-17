@@ -22,6 +22,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../../identity/presentation/guards/jwt-auth.guard';
 import { TenantMatchGuard } from '../../../identity/presentation/guards/tenant-match.guard';
 import { CurrentUser } from '../../../identity/presentation/decorators/current-user.decorator';
@@ -60,6 +61,7 @@ export class TransactionsController {
     private readonly getTransactionDetailUseCase: GetTransactionDetailUseCase,
   ) {}
 
+  @Throttle({ financial: { limit: 30, ttl: 60000 } })
   @Post('deposits')
   @Idempotent()
   @UseInterceptors(IdempotencyInterceptor)
@@ -107,6 +109,7 @@ export class TransactionsController {
     });
   }
 
+  @Throttle({ financial: { limit: 30, ttl: 60000 } })
   @Post('withdrawals')
   @Idempotent()
   @UseInterceptors(IdempotencyInterceptor)
@@ -184,6 +187,7 @@ export class TransactionsController {
     });
   }
 
+  @Throttle({ financial: { limit: 30, ttl: 60000 } })
   @Post('transfers')
   @Idempotent()
   @UseInterceptors(IdempotencyInterceptor)

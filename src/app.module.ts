@@ -1,9 +1,14 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 import { DatabaseModule } from './database/database.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+
+// Guards comunes y de seguridad
+import { BankThrottlerGuard } from './common/guards/bank-throttler.guard';
 
 // Módulos de funcionalidades y arquitectura de BankOS
 import { TenantsModule } from './modules/tenants/tenants.module';
@@ -25,6 +30,7 @@ import { AuditModule } from './modules/audit/audit.module';
  * Agrupa y organiza todos los submódulos de la aplicación bajo principios de alta cohesión
  * y bajo acoplamiento:
  * - `ConfigModule`: Carga variables de entorno (.env) de forma global.
+ * - `ThrottlerModule`: Rate limiting configurado por nombre (auth, financial, default) - Sección 1.B Proyecto.txt.
  * - `DatabaseModule`: Provee la conexión central a PostgreSQL y Drizzle ORM.
  * - `TenantsModule`: Gestión de bancos clientes y aprovisionamiento dinámico de esquemas (HU-01, HU-02).
  * - `IdentityModule`: Autenticación OIDC/JWT y control de accesos basado en roles (RBAC) (HU-03).
@@ -41,6 +47,23 @@ import { AuditModule } from './modules/audit/audit.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000, // 60 segundos
+        limit: 100, // 100 req/min general
+      },
+      {
+        name: 'auth',
+        ttl: 60000,
+        limit: 10, // 10 req/min para autenticación (anti fuerza bruta)
+      },
+      {
+        name: 'financial',
+        ttl: 60000,
+        limit: 30, // 30 req/min para operaciones financieras
+      },
+    ]),
     DatabaseModule,
     TenantsModule,
     IdentityModule,
@@ -55,7 +78,14 @@ import { AuditModule } from './modules/audit/audit.module';
     AuditModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Rate Limiting global con BankThrottlerGuard (asocia por IP o por user_id)
+    {
+      provide: APP_GUARD,
+      useClass: BankThrottlerGuard,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   /**
@@ -67,5 +97,6 @@ export class AppModule implements NestModule {
     consumer.apply(CorrelationIdMiddleware).forRoutes('*');
   }
 }
+
 
 

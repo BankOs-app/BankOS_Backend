@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { GlobalHttpExceptionFilter } from './common/filters/global-exception.filter';
 
 /**
  * Punto de entrada principal de la aplicación NestJS (BankOS Core Banking).
@@ -11,8 +12,9 @@ import { AppModule } from './app.module';
  * 2. Configuración de CORS para permitir peticiones desde frontends web/móviles.
  * 3. Asignación del prefijo global de API ('api/v1') con exclusión para Swagger y la raíz.
  * 4. Configuración del ValidationPipe global con class-validator para sanear y validar payloads DTO.
- * 5. Generación de la documentación interactiva Swagger/OpenAPI en '/api/docs'.
- * 6. Vinculación y escucha en el puerto configurado (por defecto 3000).
+ * 5. Registro del GlobalHttpExceptionFilter para estandarizar respuestas y errores con código interno (Sección 1.G Proyecto.txt).
+ * 6. Generación de la documentación interactiva Swagger/OpenAPI en '/api/docs'.
+ * 7. Vinculación y escucha en el puerto configurado (por defecto 3000).
  */
 async function bootstrap() {
   // Crea la aplicación NestJS utilizando el módulo raíz AppModule
@@ -27,6 +29,9 @@ async function bootstrap() {
     exclude: ['/', 'api/docs', 'api/docs-json'],
   });
 
+  // Filtro global para estandarizar todas las respuestas de error de la API (Sección 1.G Proyecto.txt)
+  app.useGlobalFilters(new GlobalHttpExceptionFilter());
+
   // Pipe global de validación:
   // - whitelist: true -> descarta automáticamente campos no definidos en los DTOs (evita inyección de datos basura).
   // - forbidNonWhitelisted: true -> responde con error 400 Bad Request si envían propiedades prohibidas.
@@ -38,6 +43,7 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
 
   // Configuración de OpenAPI / Swagger para documentación y pruebas interactivas en vivo
   const config = new DocumentBuilder()

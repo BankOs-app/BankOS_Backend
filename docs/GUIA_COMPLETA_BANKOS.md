@@ -35,7 +35,8 @@ Bienvenido a la guía de estudio técnica de **BankOS**. Este documento está di
 | **Redis 7** | Almacenamiento en Memoria | Utilizado para almacenamiento ultrarrápido y expiración de claves de idempotencia y candados de concurrencia. |
 | **Keycloak 24** | Identity Provider (IdP) OIDC | Servidor de identidad y gestión de acceso centralizado con soporte de estándares OAuth2 y OpenID Connect. |
 | **Docker & Docker Compose** | Contenedorización | Garantiza reproducibilidad absoluta del entorno local (PostgreSQL, Redis, Keycloak) en un solo comando. |
-| **Jest & Supertest** | Framework de Pruebas | Suite automatizada de pruebas unitarias y de integración end-to-end (E2E) con 89 tests pasando. |
+| **Jest & Supertest** | Framework de Pruebas | Suite automatizada de pruebas unitarias y de integración end-to-end (E2E) con 95 tests pasando. |
+| **@nestjs/throttler** | Rate Limiting y Seguridad | Control estricto de tasa de peticiones por IP en autenticación y por cuenta de usuario en transacciones financieras. |
 | **Swagger / OpenAPI** | Documentación de API | Especificación viva y explorador interactivo disponible en `/api/docs`. |
 
 ---
@@ -196,6 +197,27 @@ CREATE OR REPLACE RULE audit_logs_no_delete AS ON DELETE TO public.audit_logs DO
 ```
 Cualquier intento de ejecutar `UPDATE` o `DELETE` sobre la tabla de auditoría es neutralizado directamente por el motor de PostgreSQL.
 
+### E. Rate Limiting Adaptativo (IP + Cuenta de Usuario)
+Para proteger la API contra ataques de fuerza bruta y denegación de servicio (DoS) según la sección 1.B del proyecto:
+- **En Autenticación (`/identity/token`):** Se aplica un límite estricto de **10 peticiones/minuto por IP** (`ip:<clientIp>`).
+- **En Operaciones Financieras (`/deposits`, `/withdrawals`, `/transfers`):** Se aplica un límite de **30 operaciones/minuto por cuenta de usuario** (`user:<tenantId>:<userId>`). Si un atacante intenta rotar direcciones IP usando proxies o botnets, el límite por ID de usuario sigue bloqueando la sobrecarga.
+
+### F. Formato Estandarizado de Errores y Códigos Internos (Sección 1.G)
+El filtro global `GlobalHttpExceptionFilter` intercepta cualquier fallo (4xx y 5xx) y lo formatea con una respuesta uniforme:
+```json
+{
+  "success": false,
+  "statusCode": 400,
+  "internalCode": "BANKOS_INSUFFICIENT_FUNDS",
+  "description": "Saldo insuficiente para completar la transacción",
+  "message": "Saldo insuficiente para completar la transacción",
+  "timestamp": "2026-11-17T13:58:00.000Z",
+  "path": "/api/v1/tenants/banco-bogota/transactions/transfers",
+  "correlationId": "a8d388b4-804c-470b-8f80-76dc3b9e1cd9"
+}
+```
+Esto permite que cualquier cliente (frontend web, app móvil en Flutter o core externo) interprete el fallo programáticamente mediante `internalCode`.
+
 ---
 
 ## 7. Recorrido por las Historias de Usuario (85 Story Points)
@@ -301,3 +323,4 @@ http://localhost:3000/api/docs
 
 ### P4: ¿Por qué la tabla de auditoría tiene reglas en PostgreSQL y no solo validaciones en NestJS?
 > **Respuesta:** Principio de **Defensa en Profundidad**. Si un atacante o un desarrollador malintencionado obtiene acceso directo a la consola de base de datos (`psql`) con permisos de superusuario e intenta hacer `DELETE FROM audit_logs`, la regla nativa `audit_logs_no_delete` intercepta la orden a nivel del motor y no realiza ninguna acción (`DO INSTEAD NOTHING`), preservando la inmutabilidad de la bitácora legal.
+

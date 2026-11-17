@@ -23,6 +23,8 @@ import { JwtAuthGuard } from '../../../identity/presentation/guards/jwt-auth.gua
 import { RolesGuard } from '../../../identity/presentation/guards/roles.guard';
 import { TenantMatchGuard } from '../../../identity/presentation/guards/tenant-match.guard';
 import { Roles } from '../../../identity/presentation/decorators/roles.decorator';
+import { CurrentUser } from '../../../identity/presentation/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../../../identity/domain/value-objects/authenticated-user.vo';
 import { UserRole } from '../../../identity/domain/value-objects/user-role.enum';
 import { CreateAccountUseCase } from '../../application/use-cases/create-account.use-case';
 import { GetAccountUseCase } from '../../application/use-cases/get-account.use-case';
@@ -31,7 +33,7 @@ import { CreateAccountRequestDto } from '../dto/create-account.request.dto';
 import { UpdateAccountStatusRequestDto } from '../dto/update-account-status.request.dto';
 import { AccountResponseDto } from '../../application/dto/account-response.dto';
 
-@ApiTags('Cuentas Bancarias (HU-05)')
+@ApiTags('Cuentas Bancarias (HU-05 y HU-06)')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard, TenantMatchGuard)
 @Controller('tenants/:slug/accounts')
@@ -83,6 +85,20 @@ export class AccountsController {
     return this.getAccountUseCase.listAll(slug);
   }
 
+  @Get('me')
+  @ApiOperation({
+    summary: 'Consultar cuentas bancarias del cliente autenticado (Dashboard Móvil HU-06)',
+    description:
+      'Permite que el cliente autenticado consulte sus propias cuentas sin necesidad de enviar su ID.',
+  })
+  @ApiOkResponse({ type: [AccountResponseDto] })
+  async listMyAccounts(
+    @Param('slug') slug: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AccountResponseDto[]> {
+    return this.getAccountUseCase.listByCustomer(slug, user.userId);
+  }
+
   @Get('customer/:customerId')
   @ApiOperation({
     summary: 'Consultar cuentas bancarias pertenecientes a un cliente específico',
@@ -125,4 +141,5 @@ export class AccountsController {
     return this.updateAccountStatusUseCase.execute(slug, accountNumber, dto.status);
   }
 }
+
 

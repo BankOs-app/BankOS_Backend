@@ -13,6 +13,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtTokenService } from '../../infrastructure/security/jwt-token.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { CurrentUser } from '../decorators/current-user.decorator';
@@ -53,12 +54,13 @@ export class AuthController {
   constructor(private readonly tokenService: JwtTokenService) {}
 
   @Public()
+  @Throttle({ auth: { limit: 10, ttl: 60000 } })
   @Post('token')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Generar token JWT para pruebas y demostración de jueces',
+    summary: 'Generar token JWT para pruebas y demostración de jueces (Con Rate Limiting)',
     description:
-      'Emite un token firmado con los claims obligatorios (tenant_id, user_id, role) según especificación.',
+      'Emite un token firmado con los claims obligatorios (tenant_id, user_id, role). Protegido con Rate Limiting de 10 peticiones/minuto por IP contra fuerza bruta.',
   })
   @ApiResponse({ status: 200, description: 'Token JWT generado exitosamente.' })
   issueToken(@Body() dto: IssueDevTokenDto) {
