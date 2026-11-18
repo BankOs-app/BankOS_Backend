@@ -356,7 +356,7 @@ describe('Identity & Access Control (HU-03)', () => {
           email: 'pinuser@bogota.com',
           password: '0000',
         }),
-      ).rejects.toThrow('El PIN o contraseña ingresada es incorrecta.');
+      ).rejects.toThrow('El PIN de 4 dígitos ingresado es incorrecto.');
     });
 
     it('debe lanzar UnauthorizedException si el usuario tiene PIN pero no se envía en el login', async () => {
@@ -365,7 +365,7 @@ describe('Identity & Access Control (HU-03)', () => {
           tenantSlug: 'banco-bogota',
           email: 'pinuser@bogota.com',
         }),
-      ).rejects.toThrow('El PIN o contraseña ingresada es incorrecta.');
+      ).rejects.toThrow('El PIN de 4 dígitos ingresado es incorrecto.');
     });
 
     it('debe rechazar el login con BadRequestException si no se envía tenantSlug', async () => {

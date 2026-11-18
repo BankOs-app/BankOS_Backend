@@ -92,6 +92,34 @@ describe('Customers & User Management (HU-04)', () => {
       expect(savedUser.verifyPassword('0000')).toBe(false);
     });
 
+    it('debe rechazar el registro con BadRequestException si el PIN no tiene exactamente 4 dígitos numéricos', async () => {
+      const useCase = new CreateCustomerUseCase(
+        tenantRepo,
+        userRepo,
+        customerRepo,
+      );
+
+      await expect(
+        useCase.execute({
+          tenantSlug: 'banco-bogota',
+          fullName: 'Juan Pérez',
+          documentNumber: '9988776655',
+          email: 'juan@email.com',
+          pin: '12345', // 5 dígitos
+        }),
+      ).rejects.toThrow('El PIN de seguridad debe contener exactamente 4 dígitos numéricos.');
+
+      await expect(
+        useCase.execute({
+          tenantSlug: 'banco-bogota',
+          fullName: 'Juan Pérez',
+          documentNumber: '9988776655',
+          email: 'juan@email.com',
+          pin: 'abcd', // No numérico
+        }),
+      ).rejects.toThrow('El PIN de seguridad debe contener exactamente 4 dígitos numéricos.');
+    });
+
     it('debe rechazar registro si el documento ya existe en el tenant con ConflictException', async () => {
       const existingCustomer = Customer.create({
         tenantId: mockTenant.getId(),

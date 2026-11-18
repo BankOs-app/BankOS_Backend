@@ -27,8 +27,8 @@ import { Public } from '../decorators/public.decorator';
 import { AuthenticatedUser } from '../../domain/value-objects/authenticated-user.vo';
 import { UserRole } from '../../domain/value-objects/user-role.enum';
 import { UserStatus } from '../../domain/value-objects/user-status.enum';
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TENANT_REPOSITORY } from '../../../tenants/application/ports/tenant.repository.port';
 import type { TenantRepository } from '../../../tenants/application/ports/tenant.repository.port';
 import { USER_REPOSITORY } from '../../application/ports/user.repository.port';
@@ -55,12 +55,27 @@ export class LoginRequestDto {
 
   @ApiProperty({
     example: '1234',
-    description: 'PIN o contraseña del usuario',
+    description: 'PIN de acceso de exactamente 4 dígitos numéricos',
     required: false,
   })
   @IsString()
   @IsOptional()
+  @Matches(/^\d{4}$/, {
+    message: 'El PIN debe contener exactamente 4 dígitos numéricos (ej. 1234).',
+  })
   password?: string;
+
+  @ApiPropertyOptional({
+    example: '1234',
+    description: 'Alias del PIN de 4 dígitos',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @Matches(/^\d{4}$/, {
+    message: 'El PIN debe contener exactamente 4 dígitos numéricos (ej. 1234).',
+  })
+  pin?: string;
 }
 
 export class IssueDevTokenDto {
@@ -146,8 +161,9 @@ export class AuthController {
       );
     }
 
-    if (!user.verifyPassword(dto.password)) {
-      throw new UnauthorizedException('El PIN o contraseña ingresada es incorrecta.');
+    const rawPin = dto.pin || dto.password;
+    if (!user.verifyPassword(rawPin)) {
+      throw new UnauthorizedException('El PIN de 4 dígitos ingresado es incorrecto.');
     }
 
     const tenantSlug =

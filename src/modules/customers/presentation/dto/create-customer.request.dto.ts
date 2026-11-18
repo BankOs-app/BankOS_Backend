@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -56,20 +57,20 @@ export class CreateCustomerRequestDto {
 
   @ApiPropertyOptional({
     example: '1234',
-    description: 'PIN numérico de 4 dígitos o contraseña para iniciar sesión en la App Móvil',
+    description: 'PIN de acceso de exactamente 4 dígitos numéricos para la App Móvil',
   })
   @IsOptional()
   @IsString()
-  @MinLength(4, { message: 'El PIN o contraseña debe tener al menos 4 caracteres.' })
-  @MaxLength(50)
+  @Matches(/^\d{4}$/, { message: 'El PIN debe contener exactamente 4 dígitos numéricos (ej. 1234).' })
   pin?: string;
 
   @ApiPropertyOptional({
     example: '1234',
-    description: 'Alias de pin (contraseña)',
+    description: 'Alias del PIN de 4 dígitos',
   })
   @IsOptional()
   @IsString()
+  @Matches(/^\d{4}$/, { message: 'El PIN debe contener exactamente 4 dígitos numéricos (ej. 1234).' })
   password?: string;
 }
 

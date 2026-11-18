@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -81,8 +82,13 @@ export class CreateCustomerUseCase {
       );
     }
 
-    // 3. Crear entidad User con su PIN o contraseña segura
+    // 3. Crear entidad User con su PIN seguro de exactamente 4 dígitos
     const rawPin = input.pin || input.password || '1234';
+    if (!/^\d{4}$/.test(rawPin)) {
+      throw new BadRequestException(
+        'El PIN de seguridad debe contener exactamente 4 dígitos numéricos.',
+      );
+    }
     const user = User.create({
       tenantId,
       email: input.email,
