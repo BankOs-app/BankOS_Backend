@@ -11,23 +11,24 @@ import { TENANT_REPOSITORY } from '../ports/tenant.repository.port';
 import type { TenantRepository } from '../ports/tenant.repository.port';
 import { SCHEMA_PROVISIONER } from '../ports/schema-provisioner.port';
 import type { SchemaProvisioner } from '../ports/schema-provisioner.port';
+import { TENANT_SETTINGS_REPOSITORY } from '../ports/tenant-settings.repository.port';
+import type { TenantSettingsRepository } from '../ports/tenant-settings.repository.port';
+import { TenantSettings } from '../../domain/entities/tenant-settings.entity';
+import { Currency } from '../../domain/value-objects/currency.enum';
+import { FeeType } from '../../domain/value-objects/fee-type.enum';
 import { TenantResponseDto } from '../dto/tenant-response.dto';
 
 export interface RegisterTenantInput {
   name: string;
   slug: string;
+  primaryCurrency?: Currency;
+  maxTransactionAmount?: string;
+  feeType?: FeeType;
+  feeValue?: string;
 }
 
 /**
- * Caso de Uso: Registrar Tenant (HU-01)
- *
- * Flujo funcional:
- * 1. Validar unicidad del slug en el registro central (public.tenants).
- * 2. Crear la entidad Tenant con estado PROVISIONING y generar el nombre de esquema seguro.
- * 3. Persistir el tenant en estado PROVISIONING.
- * 4. Aprovisionar el esquema aislado en PostgreSQL (`CREATE SCHEMA IF NOT EXISTS ...`).
- * 5. Si el aprovisionamiento es exitoso, marcar el tenant como ACTIVE y actualizar.
- * 6. Si falla, marcar el tenant como FAILED y registrar el error.
+ * Caso de Uso: Registrar Tenant (HU-01) con configuración financiera inicial (HU-02).
  */
 @Injectable()
 export class RegisterTenantUseCase {
@@ -38,6 +39,8 @@ export class RegisterTenantUseCase {
     private readonly tenantRepository: TenantRepository,
     @Inject(SCHEMA_PROVISIONER)
     private readonly schemaProvisioner: SchemaProvisioner,
+    @Inject(TENANT_SETTINGS_REPOSITORY)
+    private readonly tenantSettingsRepository: TenantSettingsRepository,
   ) {}
 
   async execute(input: RegisterTenantInput): Promise<TenantResponseDto> {
@@ -56,7 +59,12 @@ export class RegisterTenantUseCase {
     // 2. Instanciar la entidad Tenant aplicando las reglas de dominio
     let tenant: Tenant;
     try {
-      tenant = Tenant.create(input.name, input.slug);
+      tenant = Tenant.create(input.name, input.slug, {
+        primaryCurrency: input.primaryCurrency,
+        maxTransactionAmount: input.maxTransactionAmount,
+        feeType: input.feeType,
+        feeValue: input.feeValue,
+      });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Datos inválidos';
       throw new BadRequestException(message);
@@ -71,6 +79,22 @@ export class RegisterTenantUseCase {
     // 4. Aprovisionar el esquema en PostgreSQL (Criterio CA-HU-01-04)
     try {
       await this.schemaProvisioner.provisionSchema(tenant.getSchemaName());
+
+      // Inicializar la configuración financiera en el esquema del tenant
+      try {
+        const settings = TenantSettings.create({
+          tenantId: tenant.getId(),
+          primaryCurrency: tenant.getPrimaryCurrency(),
+          maxTransactionAmount: tenant.getMaxTransactionAmount(),
+          feeType: tenant.getFeeType(),
+          feeValue: tenant.getFeeValue(),
+        });
+        await this.tenantSettingsRepository.save(settings);
+      } catch (settingsError) {
+        this.logger.warn(
+          `Advertencia al guardar configuración inicial para '${tenant.getSchemaName()}': ${String(settingsError)}`,
+        );
+      }
 
       // Si todo sale bien, activamos el tenant
       tenant.markAsActive();

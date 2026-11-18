@@ -2,7 +2,7 @@ import { Tenant } from '../../domain/entities/tenant.entity';
 import { TenantStatus } from '../../domain/value-objects/tenant-status.enum';
 
 /**
- * DTO que representa la respuesta pública con la información de un Tenant.
+ * DTO que representa la respuesta pública con la información completa de un Tenant.
  */
 export class TenantResponseDto {
   id: string;
@@ -10,6 +10,10 @@ export class TenantResponseDto {
   slug: string;
   schemaName: string;
   status: TenantStatus;
+  primaryCurrency: string;
+  maxTransactionAmount: string;
+  feeType: string;
+  feeValue: string;
   createdAt: string;
   updatedAt: string;
 
@@ -23,9 +27,12 @@ export class TenantResponseDto {
     dto.slug = tenant.getSlug().getValue();
     dto.schemaName = tenant.getSchemaName();
     dto.status = tenant.getStatus();
+    dto.primaryCurrency = tenant.getPrimaryCurrency();
+    dto.maxTransactionAmount = tenant.getMaxTransactionAmount();
+    dto.feeType = tenant.getFeeType();
+    dto.feeValue = tenant.getFeeValue();
     dto.createdAt = tenant.getCreatedAt().toISOString();
     dto.updatedAt = tenant.getUpdatedAt().toISOString();
     return dto;
   }
 }
-

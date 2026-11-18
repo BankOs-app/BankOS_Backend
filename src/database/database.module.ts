@@ -47,7 +47,7 @@ export type DrizzleDb = NodePgDatabase;
   exports: [DRIZZLE, PG_POOL, TenantSchemaResolver],
 })
 export class DatabaseModule implements OnApplicationShutdown {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   async onApplicationShutdown() {
     // Si se requiere cerrar recursos adicionales o pools al apagar la aplicación

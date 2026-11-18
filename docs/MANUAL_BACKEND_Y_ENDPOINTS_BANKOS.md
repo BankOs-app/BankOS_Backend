@@ -161,6 +161,10 @@ Todos los endpoints tienen el prefijo global: **`/api/v1`**.
       "slug": "banco-bogota",
       "status": "ACTIVE",
       "schemaName": "tenant_banco_bogota",
+      "primaryCurrency": "COP",
+      "maxTransactionAmount": "50000000.00",
+      "feeType": "FIXED",
+      "feeValue": "2500.0000",
       "createdAt": "2026-11-18T08:00:00.000Z",
       "updatedAt": "2026-11-18T08:00:00.000Z"
     },
@@ -170,6 +174,10 @@ Todos los endpoints tienen el prefijo global: **`/api/v1`**.
       "slug": "banco-santander",
       "status": "ACTIVE",
       "schemaName": "tenant_banco_santander",
+      "primaryCurrency": "USD",
+      "maxTransactionAmount": "10000.00",
+      "feeType": "PERCENTAGE",
+      "feeValue": "1.5000",
       "createdAt": "2026-11-18T08:00:00.000Z",
       "updatedAt": "2026-11-18T08:00:00.000Z"
     }
@@ -184,10 +192,14 @@ Todos los endpoints tienen el prefijo global: **`/api/v1`**.
   ```json
   {
     "name": "Banco Davivienda",
-    "slug": "banco-davivienda"
+    "slug": "banco-davivienda",
+    "primaryCurrency": "COP",
+    "maxTransactionAmount": "50000000.00",
+    "feeType": "FIXED",
+    "feeValue": "2500.00"
   }
   ```
-- **Respuesta Exitosa (`201 Created`):** Devuelve el objeto del banco con estado `ACTIVE` tras haber creado automáticamente su esquema PostgreSQL `tenant_banco_davivienda`.
+- **Respuesta Exitosa (`201 Created`):** Devuelve el objeto del banco con estado `ACTIVE` tras haber creado automáticamente su esquema físico PostgreSQL `tenant_banco_davivienda` con sus 11 tablas independientes y sus parámetros financieros inicializados.
 
 ---
 

@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { TenantStatus } from '../value-objects/tenant-status.enum';
 import { TenantSlug } from '../value-objects/tenant-slug.vo';
+import { Currency } from '../value-objects/currency.enum';
+import { FeeType } from '../value-objects/fee-type.enum';
 
 export interface TenantProps {
   id: string;
@@ -8,6 +10,10 @@ export interface TenantProps {
   slug: TenantSlug;
   schemaName: string;
   status: TenantStatus;
+  primaryCurrency: Currency;
+  maxTransactionAmount: string;
+  feeType: FeeType;
+  feeValue: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +31,10 @@ export class Tenant {
   private readonly slug: TenantSlug;
   private readonly schemaName: string;
   private status: TenantStatus;
+  private primaryCurrency: Currency;
+  private maxTransactionAmount: string;
+  private feeType: FeeType;
+  private feeValue: string;
   private readonly createdAt: Date;
   private updatedAt: Date;
 
@@ -35,6 +45,10 @@ export class Tenant {
     this.slug = props.slug;
     this.schemaName = props.schemaName;
     this.status = props.status;
+    this.primaryCurrency = props.primaryCurrency;
+    this.maxTransactionAmount = props.maxTransactionAmount;
+    this.feeType = props.feeType;
+    this.feeValue = props.feeValue;
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
@@ -42,7 +56,16 @@ export class Tenant {
   /**
    * Fábrica de dominio para crear un nuevo Tenant en estado inicial PROVISIONING.
    */
-  public static create(name: string, rawSlug: string): Tenant {
+  public static create(
+    name: string,
+    rawSlug: string,
+    settings?: {
+      primaryCurrency?: Currency;
+      maxTransactionAmount?: string;
+      feeType?: FeeType;
+      feeValue?: string;
+    },
+  ): Tenant {
     const slugVo = new TenantSlug(rawSlug);
     const id = randomUUID();
 
@@ -57,6 +80,10 @@ export class Tenant {
       slug: slugVo,
       schemaName: safeSchemaName,
       status: TenantStatus.PROVISIONING,
+      primaryCurrency: settings?.primaryCurrency ?? Currency.COP,
+      maxTransactionAmount: settings?.maxTransactionAmount ?? '50000000.00',
+      feeType: settings?.feeType ?? FeeType.FIXED,
+      feeValue: settings?.feeValue ?? '0.0000',
       createdAt: now,
       updatedAt: now,
     });
@@ -71,6 +98,10 @@ export class Tenant {
     slug: string;
     schemaName: string;
     status: TenantStatus;
+    primaryCurrency?: Currency;
+    maxTransactionAmount?: string;
+    feeType?: FeeType;
+    feeValue?: string;
     createdAt: Date;
     updatedAt: Date;
   }): Tenant {
@@ -80,6 +111,10 @@ export class Tenant {
       slug: new TenantSlug(props.slug),
       schemaName: props.schemaName,
       status: props.status,
+      primaryCurrency: props.primaryCurrency ?? Currency.COP,
+      maxTransactionAmount: props.maxTransactionAmount ?? '50000000.00',
+      feeType: props.feeType ?? FeeType.FIXED,
+      feeValue: props.feeValue ?? '0.0000',
       createdAt: props.createdAt,
       updatedAt: props.updatedAt,
     });
@@ -101,6 +136,19 @@ export class Tenant {
    */
   public markAsFailed(): void {
     this.status = TenantStatus.FAILED;
+    this.updatedAt = new Date();
+  }
+
+  public updateFinancialSettings(
+    primaryCurrency: Currency,
+    maxTransactionAmount: string,
+    feeType: FeeType,
+    feeValue: string,
+  ): void {
+    this.primaryCurrency = primaryCurrency;
+    this.maxTransactionAmount = maxTransactionAmount;
+    this.feeType = feeType;
+    this.feeValue = feeValue;
     this.updatedAt = new Date();
   }
 
@@ -139,6 +187,22 @@ export class Tenant {
     return this.status;
   }
 
+  public getPrimaryCurrency(): Currency {
+    return this.primaryCurrency;
+  }
+
+  public getMaxTransactionAmount(): string {
+    return this.maxTransactionAmount;
+  }
+
+  public getFeeType(): FeeType {
+    return this.feeType;
+  }
+
+  public getFeeValue(): string {
+    return this.feeValue;
+  }
+
   public getCreatedAt(): Date {
     return this.createdAt;
   }
@@ -147,4 +211,3 @@ export class Tenant {
     return this.updatedAt;
   }
 }
-

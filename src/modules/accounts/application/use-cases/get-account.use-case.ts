@@ -12,7 +12,7 @@ export class GetAccountUseCase {
     private readonly tenantRepository: TenantRepository,
     @Inject(ACCOUNT_REPOSITORY)
     private readonly accountRepository: AccountRepository,
-  ) {}
+  ) { }
 
   async findByNumber(
     tenantSlug: string,

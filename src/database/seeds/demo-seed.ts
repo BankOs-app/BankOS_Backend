@@ -8,13 +8,15 @@ function hashPin(plain: string): string {
 }
 
 /**
- * Script de Datos Semilla para Demostración Oficial de BankOS (Schema-per-Tenant).
+ * Script de Datos Semilla para Demostración Oficial de BankOS (Schema-per-Tenant Completo).
  *
- * Configura de forma reproducible:
- * - Tabla central public.tenants (única tabla compartida).
- * - Esquemas físicos independientes: tenant_banco_bogota y tenant_banco_santander.
- * - Cada esquema con sus 11 tablas propias (users, accounts, customers, transactions, etc.) sin columna tenant_id.
- * - Usuarios, cuentas bancarias en COP y USD con saldos listos para la demo.
+ * Configura:
+ * - Tabla central public.tenants con parámetros financieros completos (moneda, límites, comisiones).
+ * - Esquemas físicos independientes con sus 11 tablas para TODOS los bancos:
+ *   1. tenant_banco_bogota
+ *   2. tenant_banco_santander
+ *   3. tenant_banco_lombia
+ *   4. tenant_banco_nu
  */
 async function runSeed() {
   const connectionString =
@@ -25,7 +27,7 @@ async function runSeed() {
   const pool = new Pool({ connectionString });
 
   try {
-    // 1. Limpieza de tablas heredadas en public (para que en public solo viva tenants)
+    // 1. Configurar tabla central public.tenants con columnas financieras
     console.log('[Seed] 1. Configurando tabla central public.tenants...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.tenants (
@@ -33,10 +35,19 @@ async function runSeed() {
         name VARCHAR(100) NOT NULL,
         slug VARCHAR(50) NOT NULL UNIQUE,
         status VARCHAR(20) NOT NULL DEFAULT 'PROVISIONING',
-        schema_name VARCHAR(63) NOT NULL,
+        schema_name VARCHAR(63) NOT NULL UNIQUE,
+        primary_currency VARCHAR(3) NOT NULL DEFAULT 'COP',
+        max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00,
+        fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED',
+        fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS primary_currency VARCHAR(3) NOT NULL DEFAULT 'COP';
+      ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00;
+      ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED';
+      ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000;
 
       DROP TABLE IF EXISTS public.outbox_events CASCADE;
       DROP TABLE IF EXISTS public.webhook_endpoints CASCADE;
@@ -51,22 +62,31 @@ async function runSeed() {
       DROP TABLE IF EXISTS public.tenant_settings CASCADE;
     `);
 
-    // 2. Sembrar Tenants
-    console.log('[Seed] 2. Sembrando catálogo central de Tenants...');
-    const tenant1Id = '11111111-1111-4111-8111-111111111111';
-    const tenant2Id = '22222222-2222-4222-8222-222222222222';
+    // 2. Sembrar los 4 Tenants en public.tenants
+    console.log('[Seed] 2. Sembrando catálogo central de Tenants con configuración completa...');
+    const tenantBogotaId = '11111111-1111-4111-8111-111111111111';
+    const tenantSantanderId = '22222222-2222-4222-8222-222222222222';
+    const tenantLombiaId = '4f2a0415-2697-42d7-878d-ab67a1f6a657';
+    const tenantNuId = '47130a5f-3368-4a0b-ab77-0982b6a07a96';
 
     await pool.query(`
-      INSERT INTO public.tenants (id, name, slug, status, schema_name)
+      INSERT INTO public.tenants (id, name, slug, status, schema_name, primary_currency, max_transaction_amount, fee_type, fee_value)
       VALUES 
-        ('${tenant1Id}', 'Banco de Bogotá', 'banco-bogota', 'ACTIVE', 'tenant_banco_bogota'),
-        ('${tenant2Id}', 'Banco Santander', 'banco-santander', 'ACTIVE', 'tenant_banco_santander')
-      ON CONFLICT (slug) DO UPDATE SET status = 'ACTIVE';
+        ('${tenantBogotaId}', 'Banco de Bogotá', 'banco-bogota', 'ACTIVE', 'tenant_banco_bogota', 'COP', 50000000.00, 'FIXED', 2500.0000),
+        ('${tenantSantanderId}', 'Banco Santander', 'banco-santander', 'ACTIVE', 'tenant_banco_santander', 'USD', 10000.00, 'PERCENTAGE', 1.5000),
+        ('${tenantLombiaId}', 'Bancolombia', 'banco-lombia', 'ACTIVE', 'tenant_banco_lombia', 'COP', 50000000.00, 'FIXED', 2500.0000),
+        ('${tenantNuId}', 'Banco de NU', 'banco-nu', 'ACTIVE', 'tenant_banco_nu', 'COP', 20000000.00, 'FIXED', 0.0000)
+      ON CONFLICT (slug) DO UPDATE SET 
+        status = 'ACTIVE',
+        primary_currency = EXCLUDED.primary_currency,
+        max_transaction_amount = EXCLUDED.max_transaction_amount,
+        fee_type = EXCLUDED.fee_type,
+        fee_value = EXCLUDED.fee_value;
     `);
 
     // Función auxiliar para aprovisionar las 11 tablas en un esquema
     const createSchemaTables = async (schemaName: string) => {
-      console.log(`[Seed] Aprovisionando tablas en esquema físico '${schemaName}'...`);
+      console.log(`[Seed] Aprovisionando 11 tablas en esquema físico '${schemaName}'...`);
       await pool.query(`
         CREATE SCHEMA IF NOT EXISTS "${schemaName}";
 
@@ -195,14 +215,16 @@ async function runSeed() {
       `);
     };
 
-    // 3. Crear tablas en cada esquema
+    // 3. Crear tablas en los 4 esquemas
     await createSchemaTables('tenant_banco_bogota');
     await createSchemaTables('tenant_banco_santander');
+    await createSchemaTables('tenant_banco_lombia');
+    await createSchemaTables('tenant_banco_nu');
 
-    // 4. Sembrar datos de Banco de Bogotá
-    console.log('[Seed] 4. Sembrando datos en tenant_banco_bogota...');
     const defaultPasswordHash = hashPin('1234');
 
+    // 4. Sembrar Banco de Bogotá
+    console.log('[Seed] 4. Sembrando datos en tenant_banco_bogota...');
     const adminBogotaId = '33333333-3333-4333-8333-333333333333';
     const userCarlosId = '55555555-5555-4555-8555-555555555555';
     const userMariaId = '66666666-6666-4666-8666-666666666666';
@@ -239,7 +261,7 @@ async function runSeed() {
       ON CONFLICT DO NOTHING;
     `);
 
-    // 5. Sembrar datos de Banco Santander
+    // 5. Sembrar Banco Santander
     console.log('[Seed] 5. Sembrando datos en tenant_banco_santander...');
     const adminSantanderId = '44444444-4444-4444-8444-444444444444';
     const userJohnId = '77777777-7777-4777-8777-777777777777';
@@ -272,13 +294,79 @@ async function runSeed() {
       ON CONFLICT DO NOTHING;
     `);
 
+    // 6. Sembrar Bancolombia
+    console.log('[Seed] 6. Sembrando datos en tenant_banco_lombia...');
+    const adminLombiaId = '55551111-5555-4555-8555-555511111111';
+    const userLombiaId = '55552222-5555-4555-8555-555522222222';
+
+    await pool.query(`
+      INSERT INTO "tenant_banco_lombia".tenant_settings (id, primary_currency, max_transaction_amount, fee_type, fee_value)
+      VALUES (gen_random_uuid(), 'COP', '50000000.00', 'FIXED', '2500.00')
+      ON CONFLICT DO NOTHING;
+
+      INSERT INTO "tenant_banco_lombia".tenant_exchange_rates (id, from_currency, to_currency, rate)
+      VALUES 
+        (gen_random_uuid(), 'USD', 'COP', '4050.000000'),
+        (gen_random_uuid(), 'EUR', 'COP', '4350.000000')
+      ON CONFLICT DO NOTHING;
+
+      INSERT INTO "tenant_banco_lombia".users (id, email, role, status, password_hash)
+      VALUES 
+        ('${adminLombiaId}', 'admin@bancolombia.com', 'admin', 'ACTIVE', '${defaultPasswordHash}'),
+        ('${userLombiaId}', 'cliente@bancolombia.com', 'customer', 'ACTIVE', '${defaultPasswordHash}')
+      ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+
+      INSERT INTO "tenant_banco_lombia".customers (id, user_id, full_name, document_number, email, phone)
+      VALUES 
+        (gen_random_uuid(), '${userLombiaId}', 'Alejandro Morales', '7007007007', 'cliente@bancolombia.com', '+573017654321')
+      ON CONFLICT DO NOTHING;
+
+      INSERT INTO "tenant_banco_lombia".accounts (id, customer_id, account_number, currency, balance, status)
+      VALUES 
+        (gen_random_uuid(), '${userLombiaId}', '7007007001', 'COP', '8000000.00', 'ACTIVE')
+      ON CONFLICT DO NOTHING;
+    `);
+
+    // 7. Sembrar Banco de NU
+    console.log('[Seed] 7. Sembrando datos en tenant_banco_nu...');
+    const adminNuId = '66661111-6666-4666-8666-666611111111';
+    const userNuId = '66662222-6666-4666-8666-666622222222';
+
+    await pool.query(`
+      INSERT INTO "tenant_banco_nu".tenant_settings (id, primary_currency, max_transaction_amount, fee_type, fee_value)
+      VALUES (gen_random_uuid(), 'COP', '20000000.00', 'FIXED', '0.00')
+      ON CONFLICT DO NOTHING;
+
+      INSERT INTO "tenant_banco_nu".users (id, email, role, status, password_hash)
+      VALUES 
+        ('${adminNuId}', 'admin@nu.com', 'admin', 'ACTIVE', '${defaultPasswordHash}'),
+        ('${userNuId}', 'cliente@nu.com', 'customer', 'ACTIVE', '${defaultPasswordHash}')
+      ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+
+      INSERT INTO "tenant_banco_nu".customers (id, user_id, full_name, document_number, email, phone)
+      VALUES 
+        (gen_random_uuid(), '${userNuId}', 'Catalina Restrepo', '8008008008', 'cliente@nu.com', '+573159988776')
+      ON CONFLICT DO NOTHING;
+
+      INSERT INTO "tenant_banco_nu".accounts (id, customer_id, account_number, currency, balance, status)
+      VALUES 
+        (gen_random_uuid(), '${userNuId}', '8008008001', 'COP', '3500000.00', 'ACTIVE')
+      ON CONFLICT DO NOTHING;
+    `);
+
     console.log('\n======================================================');
     console.log('✅ SEED SCHEMA-PER-TENANT COMPLETADO EXITOSAMENTE');
     console.log('======================================================');
-    console.log('Esquemas creados físicamente en PostgreSQL:');
-    console.log('  - public: solo tabla "tenants"');
-    console.log('  - tenant_banco_bogota: 11 tablas con datos de Banco de Bogotá');
-    console.log('  - tenant_banco_santander: 11 tablas con datos de Banco Santander');
+    console.log('Instituciones configuradas en public.tenants con parámetros financieros:');
+    console.log('  1. Banco de Bogotá   (banco-bogota)   -> Moneda: COP, Límite: $50M, Comisión: $2,500 COP');
+    console.log('  2. Banco Santander   (banco-santander) -> Moneda: USD, Límite: $10k, Comisión: 1.5%');
+    console.log('  3. Bancolombia       (banco-lombia)   -> Moneda: COP, Límite: $50M, Comisión: $2,500 COP');
+    console.log('  4. Banco de NU       (banco-nu)       -> Moneda: COP, Límite: $20M, Comisión: $0');
+    console.log('Esquemas físicos aprovisionados (cada uno con 11 tablas):');
+    console.log('  - tenant_banco_bogota');
+    console.log('  - tenant_banco_santander');
+    console.log('  - tenant_banco_lombia');
+    console.log('  - tenant_banco_nu');
     console.log('PIN universal de prueba: 1234');
     console.log('======================================================\n');
   } catch (error) {

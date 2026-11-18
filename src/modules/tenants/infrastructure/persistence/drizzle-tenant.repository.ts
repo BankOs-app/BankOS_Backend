@@ -7,6 +7,8 @@ import { tenantsTable, TenantRecord } from '../../../../database/schema/tenants.
 import { TenantSchemaResolver } from '../../../../database/tenant-schema-resolver.service';
 import { Tenant } from '../../domain/entities/tenant.entity';
 import { TenantStatus } from '../../domain/value-objects/tenant-status.enum';
+import { Currency } from '../../domain/value-objects/currency.enum';
+import { FeeType } from '../../domain/value-objects/fee-type.enum';
 import type { TenantRepository } from '../../application/ports/tenant.repository.port';
 
 /**
@@ -32,11 +34,19 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
           slug VARCHAR(50) NOT NULL UNIQUE,
           schema_name VARCHAR(63) NOT NULL UNIQUE,
           status VARCHAR(20) NOT NULL DEFAULT 'PROVISIONING',
+          primary_currency VARCHAR(3) NOT NULL DEFAULT 'COP',
+          max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00,
+          fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED',
+          fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS primary_currency VARCHAR(3) NOT NULL DEFAULT 'COP';
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00;
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED';
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000;
       `);
-      this.logger.log('Tabla central public.tenants verificada.');
+      this.logger.log('Tabla central public.tenants verificada con parámetros financieros.');
     } catch {
       this.logger.warn(
         'No se pudo verificar la tabla public.tenants en el arranque.',
@@ -51,6 +61,10 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       slug: tenant.getSlug().getValue(),
       schemaName: tenant.getSchemaName(),
       status: tenant.getStatus(),
+      primaryCurrency: tenant.getPrimaryCurrency(),
+      maxTransactionAmount: tenant.getMaxTransactionAmount(),
+      feeType: tenant.getFeeType(),
+      feeValue: tenant.getFeeValue(),
       createdAt: tenant.getCreatedAt(),
       updatedAt: tenant.getUpdatedAt(),
     });
@@ -68,6 +82,10 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       .set({
         name: tenant.getName(),
         status: tenant.getStatus(),
+        primaryCurrency: tenant.getPrimaryCurrency(),
+        maxTransactionAmount: tenant.getMaxTransactionAmount(),
+        feeType: tenant.getFeeType(),
+        feeValue: tenant.getFeeValue(),
         updatedAt: tenant.getUpdatedAt(),
       })
       .where(eq(tenantsTable.id, tenant.getId()));
@@ -131,6 +149,10 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       slug: row.slug,
       schemaName: row.schemaName,
       status: row.status as TenantStatus,
+      primaryCurrency: (row.primaryCurrency as Currency) ?? Currency.COP,
+      maxTransactionAmount: row.maxTransactionAmount ?? '50000000.00',
+      feeType: (row.feeType as FeeType) ?? FeeType.FIXED,
+      feeValue: row.feeValue ?? '0.0000',
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });

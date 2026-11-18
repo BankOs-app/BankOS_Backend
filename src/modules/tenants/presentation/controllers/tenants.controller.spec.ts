@@ -44,6 +44,10 @@ describe('TenantsController', () => {
       slug: 'banco-prueba',
       schemaName: 'tenant_banco_prueba',
       status: TenantStatus.ACTIVE,
+      primaryCurrency: 'COP',
+      maxTransactionAmount: '50000000.00',
+      feeType: 'FIXED',
+      feeValue: '0.0000',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -69,6 +73,10 @@ describe('TenantsController', () => {
       slug: 'banco-prueba',
       schemaName: 'tenant_banco_prueba',
       status: TenantStatus.ACTIVE,
+      primaryCurrency: 'COP',
+      maxTransactionAmount: '50000000.00',
+      feeType: 'FIXED',
+      feeValue: '0.0000',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

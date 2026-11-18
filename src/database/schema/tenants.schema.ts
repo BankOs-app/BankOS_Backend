@@ -1,10 +1,11 @@
-import { pgTable, uuid, varchar, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, timestamp, numeric } from 'drizzle-orm/pg-core';
 
 /**
  * Tabla central de Tenants en el esquema 'public'.
  *
- * Contiene el registro de las instituciones financieras y el nombre
- * del esquema PostgreSQL aislado que le corresponde a cada una.
+ * Contiene el registro de las instituciones financieras, el nombre
+ * del esquema PostgreSQL aislado que le corresponde a cada una y
+ * su configuración financiera inicial.
  */
 export const tenantsTable = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -12,10 +13,26 @@ export const tenantsTable = pgTable('tenants', {
   slug: varchar('slug', { length: 50 }).notNull().unique(),
   schemaName: varchar('schema_name', { length: 63 }).notNull().unique(),
   status: varchar('status', { length: 20 }).notNull().default('PROVISIONING'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  primaryCurrency: varchar('primary_currency', { length: 3 })
+    .notNull()
+    .default('COP'),
+  maxTransactionAmount: numeric('max_transaction_amount', {
+    precision: 18,
+    scale: 2,
+  })
+    .notNull()
+    .default('50000000.00'),
+  feeType: varchar('fee_type', { length: 20 }).notNull().default('FIXED'),
+  feeValue: numeric('fee_value', { precision: 18, scale: 4 })
+    .notNull()
+    .default('0.0000'),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 export type TenantRecord = typeof tenantsTable.$inferSelect;
 export type NewTenantRecord = typeof tenantsTable.$inferInsert;
-

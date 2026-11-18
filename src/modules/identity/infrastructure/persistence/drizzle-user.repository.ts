@@ -14,7 +14,7 @@ export class DrizzleUserRepository implements UserRepository {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
     private readonly schemaResolver: TenantSchemaResolver,
-  ) {}
+  ) { }
 
   async save(user: User): Promise<void> {
     const info = await this.schemaResolver.resolve(user.getTenantId());
