@@ -171,6 +171,17 @@ describe('Identity & Access Control (HU-03)', () => {
               updatedAt: new Date(),
             });
           }
+          if (slug === 'banco-santander') {
+            return Tenant.reconstitute({
+              id: 'tnt-uuid-2',
+              name: 'Banco Santander',
+              slug: 'banco-santander',
+              schemaName: 'tenant_banco_santander',
+              status: 'ACTIVE' as any,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
           return null;
         }),
         findById: jest.fn().mockImplementation(async (id: string) => {
@@ -190,7 +201,31 @@ describe('Identity & Access Control (HU-03)', () => {
       };
 
       mockUserRepo = {
-        findByEmail: jest.fn().mockImplementation(async (_tenantId: string, email: string) => {
+        findByEmail: jest.fn().mockImplementation(async (tenantId: string, email: string) => {
+          if (email === 'carlos@global.com' && tenantId === 'tnt-uuid-1') {
+            return User.reconstitute({
+              id: 'usr-carlos-bogota',
+              tenantId: 'tnt-uuid-1',
+              email: 'carlos@global.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.ACTIVE,
+              passwordHash: PasswordHasher.hash('1111'),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          if (email === 'carlos@global.com' && tenantId === 'tnt-uuid-2') {
+            return User.reconstitute({
+              id: 'usr-carlos-santander',
+              tenantId: 'tnt-uuid-2',
+              email: 'carlos@global.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.ACTIVE,
+              passwordHash: PasswordHasher.hash('2222'),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
           if (email === 'carlos@bogota.com') {
             return User.reconstitute({
               id: 'usr-carlos-1',
@@ -333,25 +368,34 @@ describe('Identity & Access Control (HU-03)', () => {
       ).rejects.toThrow('El PIN o contraseña ingresada es incorrecta.');
     });
 
-    it('debe iniciar sesión directamente con email y PIN sin requerir tenantSlug (Flujo Flutter)', async () => {
-      const result = await authController.login({
-        email: 'pinuser@bogota.com',
-        password: '4321',
-      });
-
-      expect(result).toHaveProperty('access_token');
-      expect(result.user.email).toBe('pinuser@bogota.com');
-      expect(result.user.tenantSlug).toBe('banco-bogota');
-      expect(result.user.tenantName).toBe('Banco de Bogotá');
-    });
-
-    it('debe lanzar UnauthorizedException si no se envía tenantSlug y el correo no existe', async () => {
+    it('debe rechazar el login con BadRequestException si no se envía tenantSlug', async () => {
       await expect(
         authController.login({
-          email: 'desconocido@cualquier.com',
-          password: '1234',
+          tenantSlug: '',
+          email: 'pinuser@bogota.com',
+          password: '4321',
         }),
-      ).rejects.toThrow('No existe ningún usuario registrado con el correo');
+      ).rejects.toThrow('El identificador del banco (tenantSlug) es obligatorio');
+    });
+
+    it('debe permitir que un mismo usuario inicie sesión en diferentes bancos según el tenantSlug indicado', async () => {
+      // 1. Inicia sesión en Banco de Bogotá
+      const sessionBogota = await authController.login({
+        tenantSlug: 'banco-bogota',
+        email: 'carlos@global.com',
+        password: '1111',
+      });
+      expect(sessionBogota.user.tenantSlug).toBe('banco-bogota');
+      expect(sessionBogota.user.userId).toBe('usr-carlos-bogota');
+
+      // 2. Inicia sesión en Banco Santander
+      const sessionSantander = await authController.login({
+        tenantSlug: 'banco-santander',
+        email: 'carlos@global.com',
+        password: '2222',
+      });
+      expect(sessionSantander.user.tenantSlug).toBe('banco-santander');
+      expect(sessionSantander.user.userId).toBe('usr-carlos-santander');
     });
 
     it('debe lanzar ForbiddenException si el usuario está bloqueado', async () => {

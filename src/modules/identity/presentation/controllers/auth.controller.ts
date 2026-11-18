@@ -27,8 +27,6 @@ import { Public } from '../decorators/public.decorator';
 import { AuthenticatedUser } from '../../domain/value-objects/authenticated-user.vo';
 import { UserRole } from '../../domain/value-objects/user-role.enum';
 import { UserStatus } from '../../domain/value-objects/user-status.enum';
-import type { User } from '../../domain/entities/user.entity';
-import type { Tenant } from '../../../tenants/domain/entities/tenant.entity';
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TENANT_REPOSITORY } from '../../../tenants/application/ports/tenant.repository.port';
@@ -40,12 +38,13 @@ export class LoginRequestDto {
   @ApiProperty({
     example: 'banco-bogota',
     description:
-      'Slug de la institución bancaria (opcional: si no se envía, el backend resuelve el banco automáticamente por el correo del usuario)',
-    required: false,
+      'Slug o identificador de la institución bancaria a la que pertenece el usuario (Requerimiento oficial Línea 72 de Proyecto.txt)',
   })
   @IsString()
-  @IsOptional()
-  tenantSlug?: string;
+  @IsNotEmpty({
+    message: 'El identificador del banco (tenantSlug) es obligatorio para iniciar sesión.',
+  })
+  tenantSlug: string;
 
   @ApiProperty({
     example: 'carlos@bogota.com',
@@ -109,8 +108,8 @@ export class AuthController {
   @ApiOperation({
     summary: 'Iniciar sesión (Flujo oficial de App Móvil Flutter / Web)',
     description:
-      'Permite que un usuario inicie sesión seleccionando el banco (slug) e ingresando su correo electrónico. ' +
-      'Valida que el banco exista, que el usuario pertenezca a él y que esté activo, devolviendo el JWT y su perfil.',
+      'Requerimiento oficial Línea 72 de Proyecto.txt: "El inicio de sesión debe requerir las credenciales del usuario y el identificador/slug del tenant al que pertenece". ' +
+      'Valida que el banco exista, que el usuario pertenezca a él, que su PIN/contraseña coincida y que esté activo, devolviendo el JWT y su perfil.',
   })
   @ApiResponse({ status: 200, description: 'Inicio de sesión exitoso y token generado.' })
   async login(@Body() dto: LoginRequestDto) {
@@ -118,45 +117,27 @@ export class AuthController {
       throw new BadRequestException('Servicio de repositorios no disponible.');
     }
 
-    const email = dto.email.trim().toLowerCase();
-    let user: User | null = null;
-    let tenant: Tenant | null = null;
-
-    if (dto.tenantSlug && dto.tenantSlug.trim() !== '') {
-      tenant = await this.tenantRepository.findBySlug(
-        dto.tenantSlug.trim().toLowerCase(),
+    if (!dto.tenantSlug || dto.tenantSlug.trim() === '') {
+      throw new BadRequestException(
+        'El identificador del banco (tenantSlug) es obligatorio para iniciar sesión.',
       );
-      if (!tenant) {
-        throw new NotFoundException(
-          `La institución bancaria con identificador '${dto.tenantSlug}' no existe.`,
-        );
-      }
+    }
 
-      user = await this.userRepository.findByEmail(tenant.getId(), email);
-      if (!user) {
-        throw new UnauthorizedException(
-          `No existe ningún usuario registrado con el correo '${dto.email}' en ${tenant.getName()}.`,
-        );
-      }
-    } else {
-      // Flujo de App Móvil Flutter: El usuario solo ingresa su correo y PIN.
-      // Se resuelve automáticamente la institución bancaria a la que pertenece.
-      user = this.userRepository.findAnyByEmail
-        ? await this.userRepository.findAnyByEmail(email)
-        : null;
+    const tenant = await this.tenantRepository.findBySlug(
+      dto.tenantSlug.trim().toLowerCase(),
+    );
+    if (!tenant) {
+      throw new NotFoundException(
+        `La institución bancaria con identificador '${dto.tenantSlug}' no existe.`,
+      );
+    }
 
-      if (!user) {
-        throw new UnauthorizedException(
-          `No existe ningún usuario registrado con el correo '${dto.email}'.`,
-        );
-      }
-
-      tenant = await this.tenantRepository.findById(user.getTenantId());
-      if (!tenant) {
-        throw new NotFoundException(
-          'La institución bancaria asociada a este usuario no fue encontrada.',
-        );
-      }
+    const email = dto.email.trim().toLowerCase();
+    const user = await this.userRepository.findByEmail(tenant.getId(), email);
+    if (!user) {
+      throw new UnauthorizedException(
+        `No existe ningún usuario registrado con el correo '${dto.email}' en ${tenant.getName()}.`,
+      );
     }
 
     if (user.getStatus() !== UserStatus.ACTIVE) {

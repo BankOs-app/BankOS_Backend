@@ -344,16 +344,17 @@ Para soportar clientes bancarios que utilicen la aplicación móvil en **Flutter
   ```
 - **Seguridad en Backend:** El PIN se hashea mediante `PasswordHasher` usando `node:crypto.scryptSync` con salt criptográfico de 16 bytes. El PIN en texto plano nunca se guarda en base de datos.
 
-### Flujo 2: Inicio de Sesión Oficial en Flutter (Sin necesidad de elegir banco)
+### Flujo 2: Inicio de Sesión Oficial en Flutter (Requerimiento Línea 72)
+Según los requerimientos oficiales del reto (*"Ingreso por Tenant: El inicio de sesión debe requerir las credenciales del usuario y el identificador/slug del tenant al que pertenece"*), un usuario puede tener cuentas en diferentes instituciones (ej. Banco de Bogotá y Banco Santander), por lo que en el Login selecciona su banco:
 - **Endpoint:** `POST /api/v1/identity/login` (Público con Rate Limit de 10 peticiones/minuto por IP).
 - **Cuerpo (JSON):**
   ```json
   {
+    "tenantSlug": "banco-bogota",
     "email": "carlos@bogota.com",
     "password": "1234"
   }
   ```
-  *(Nota: `tenantSlug` es opcional; al ingresar correo y PIN, el backend resuelve automáticamente la institución bancaria a la que pertenece el usuario, ya que las políticas del sistema impiden que un usuario esté duplicado en múltiples bancos).*
 - **Respuesta (JSON):**
   ```json
   {
