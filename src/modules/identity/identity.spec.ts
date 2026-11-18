@@ -145,5 +145,109 @@ describe('Identity & Access Control (HU-03)', () => {
       expect(() => guard.canActivate(mockContext)).toThrow(ForbiddenException);
     });
   });
+
+  describe('AuthController (Flujo de Login para Flutter)', () => {
+    let authController: AuthController;
+    let mockTenantRepo: any;
+    let mockUserRepo: any;
+
+    beforeEach(async () => {
+      const { AuthController } = await import('./presentation/controllers/auth.controller');
+      const { Tenant } = await import('../tenants/domain/entities/tenant.entity');
+      const { User } = await import('./domain/entities/user.entity');
+      const { UserStatus } = await import('./domain/value-objects/user-status.enum');
+
+      mockTenantRepo = {
+        findBySlug: jest.fn().mockImplementation(async (slug: string) => {
+          if (slug === 'banco-bogota') {
+            return Tenant.reconstitute({
+              id: 'tnt-uuid-1',
+              name: 'Banco de Bogotá',
+              slug: 'banco-bogota',
+              schemaName: 'tenant_banco_bogota',
+              status: 'ACTIVE' as any,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          return null;
+        }),
+      };
+
+      mockUserRepo = {
+        findByEmail: jest.fn().mockImplementation(async (_tenantId: string, email: string) => {
+          if (email === 'carlos@bogota.com') {
+            return User.reconstitute({
+              id: 'usr-carlos-1',
+              tenantId: 'tnt-uuid-1',
+              email: 'carlos@bogota.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.ACTIVE,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          if (email === 'bloqueado@bogota.com') {
+            return User.reconstitute({
+              id: 'usr-bloqueado-1',
+              tenantId: 'tnt-uuid-1',
+              email: 'bloqueado@bogota.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.BLOCKED,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          return null;
+        }),
+      };
+
+      authController = new AuthController(
+        tokenService,
+        mockTenantRepo,
+        mockUserRepo,
+      );
+    });
+
+    it('debe iniciar sesión exitosamente con slug y email', async () => {
+      const result = await authController.login({
+        tenantSlug: 'banco-bogota',
+        email: 'carlos@bogota.com',
+      });
+
+      expect(result).toHaveProperty('access_token');
+      expect(result.user.email).toBe('carlos@bogota.com');
+      expect(result.user.role).toBe(UserRole.CUSTOMER);
+      expect(result.user.tenantSlug).toBe('banco-bogota');
+    });
+
+    it('debe lanzar NotFoundException si el banco no existe', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: 'banco-inexistente',
+          email: 'carlos@bogota.com',
+        }),
+      ).rejects.toThrow('La institución bancaria con identificador \'banco-inexistente\' no existe.');
+    });
+
+    it('debe lanzar UnauthorizedException si el usuario no existe en ese banco', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: 'banco-bogota',
+          email: 'noexiste@bogota.com',
+        }),
+      ).rejects.toThrow('No existe ningún usuario registrado');
+    });
+
+    it('debe lanzar ForbiddenException si el usuario está bloqueado', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: 'banco-bogota',
+          email: 'bloqueado@bogota.com',
+        }),
+      ).rejects.toThrow('se encuentra inactiva o bloqueada');
+    });
+  });
 });
+
 
