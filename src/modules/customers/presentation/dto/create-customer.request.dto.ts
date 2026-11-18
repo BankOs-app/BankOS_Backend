@@ -44,5 +44,23 @@ export class CreateCustomerRequestDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @ApiPropertyOptional({
+    example: '1234',
+    description: 'PIN numérico de 4 dígitos o contraseña para iniciar sesión en la App Móvil',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(4, { message: 'El PIN o contraseña debe tener al menos 4 caracteres.' })
+  @MaxLength(50)
+  pin?: string;
+
+  @ApiPropertyOptional({
+    example: '1234',
+    description: 'Alias de pin (contraseña)',
+  })
+  @IsOptional()
+  @IsString()
+  password?: string;
 }
 

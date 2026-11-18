@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { PasswordHasher } from '../../modules/identity/infrastructure/security/password-hasher';
 
 /**
  * Script de Datos Semilla para Demostración Oficial de BankOS (HU-16 - T03).
@@ -58,9 +59,11 @@ async function runSeed() {
         email VARCHAR(150) NOT NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'customer',
         status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+        password_hash VARCHAR(255),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
 
       CREATE TABLE IF NOT EXISTS public.customers (
         id UUID PRIMARY KEY,
@@ -207,15 +210,17 @@ async function runSeed() {
     const userMariaId = '66666666-6666-4666-8666-666666666666';
     const userJohnId = '77777777-7777-4777-8777-777777777777';
 
+    const defaultPasswordHash = PasswordHasher.hash('1234');
+
     await pool.query(`
-      INSERT INTO public.users (id, tenant_id, email, role, status)
+      INSERT INTO public.users (id, tenant_id, email, role, status, password_hash)
       VALUES 
-        ('${adminBogotaId}', '${tenant1Id}', 'admin@bogota.com', 'admin', 'ACTIVE'),
-        ('${adminSantanderId}', '${tenant2Id}', 'admin@santander.com', 'admin', 'ACTIVE'),
-        ('${userCarlosId}', '${tenant1Id}', 'carlos@bogota.com', 'customer', 'ACTIVE'),
-        ('${userMariaId}', '${tenant1Id}', 'maria@bogota.com', 'customer', 'ACTIVE'),
-        ('${userJohnId}', '${tenant2Id}', 'john@santander.com', 'customer', 'ACTIVE')
-      ON CONFLICT DO NOTHING;
+        ('${adminBogotaId}', '${tenant1Id}', 'admin@bogota.com', 'admin', 'ACTIVE', '${defaultPasswordHash}'),
+        ('${adminSantanderId}', '${tenant2Id}', 'admin@santander.com', 'admin', 'ACTIVE', '${defaultPasswordHash}'),
+        ('${userCarlosId}', '${tenant1Id}', 'carlos@bogota.com', 'customer', 'ACTIVE', '${defaultPasswordHash}'),
+        ('${userMariaId}', '${tenant1Id}', 'maria@bogota.com', 'customer', 'ACTIVE', '${defaultPasswordHash}'),
+        ('${userJohnId}', '${tenant2Id}', 'john@santander.com', 'customer', 'ACTIVE', '${defaultPasswordHash}')
+      ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
       INSERT INTO public.customers (id, user_id, tenant_id, full_name, document_number, email, phone)
       VALUES 
@@ -240,6 +245,8 @@ async function runSeed() {
     console.log('\n======================================================');
     console.log('✅ SEED COMPLETADO EXITOSAMENTE PARA LA DEMOSTRACIÓN');
     console.log('======================================================');
+    console.log('Credenciales de acceso general:');
+    console.log('  - PIN / Contraseña universal de demostración: 1234');
     console.log('Instituciones creadas:');
     console.log('  1. Banco de Bogotá   (slug: banco-bogota)');
     console.log('     - Admin: admin@bogota.com');

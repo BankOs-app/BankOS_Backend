@@ -139,6 +139,10 @@ export class AuthController {
       );
     }
 
+    if (!user.verifyPassword(dto.password)) {
+      throw new UnauthorizedException('El PIN o contraseña ingresada es incorrecta.');
+    }
+
     const tenantSlug =
       typeof tenant.getSlug() === 'object' && 'getValue' in tenant.getSlug()
         ? tenant.getSlug().getValue()

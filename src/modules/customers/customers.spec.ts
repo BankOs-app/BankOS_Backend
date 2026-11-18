@@ -60,10 +60,34 @@ describe('Customers & User Management (HU-04)', () => {
 
       expect(userRepo.save).toHaveBeenCalledTimes(1);
       expect(customerRepo.save).toHaveBeenCalledTimes(1);
+      const savedUser = (userRepo.save as jest.Mock).mock.calls[0][0];
+      expect(savedUser.getPasswordHash()).toBeDefined();
+      expect(savedUser.verifyPassword('1234')).toBe(true);
       expect(result.fullName).toBe('Carlos Alberto Rodríguez');
       expect(result.documentNumber).toBe('1020304050');
       expect(result.email).toBe('carlos@email.com');
       expect(result.userId).toBeDefined();
+    });
+
+    it('debe configurar el PIN personalizado en el usuario al registrarlo', async () => {
+      const useCase = new CreateCustomerUseCase(
+        tenantRepo,
+        userRepo,
+        customerRepo,
+      );
+
+      await useCase.execute({
+        tenantSlug: 'banco-bogota',
+        fullName: 'Juan Pérez',
+        documentNumber: '9988776655',
+        email: 'juan@email.com',
+        pin: '9876',
+      });
+
+      expect(userRepo.save).toHaveBeenCalledTimes(1);
+      const savedUser = (userRepo.save as jest.Mock).mock.calls[0][0];
+      expect(savedUser.verifyPassword('9876')).toBe(true);
+      expect(savedUser.verifyPassword('0000')).toBe(false);
     });
 
     it('debe rechazar registro si el documento ya existe en el tenant con ConflictException', async () => {

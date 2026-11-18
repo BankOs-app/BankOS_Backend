@@ -2,6 +2,7 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { JwtTokenService } from './infrastructure/security/jwt-token.service';
+import { PasswordHasher } from './infrastructure/security/password-hasher';
 import { UserRole } from './domain/value-objects/user-role.enum';
 import { AuthenticatedUser } from './domain/value-objects/authenticated-user.vo';
 import { TenantMatchGuard } from './presentation/guards/tenant-match.guard';
@@ -187,6 +188,18 @@ describe('Identity & Access Control (HU-03)', () => {
               updatedAt: new Date(),
             });
           }
+          if (email === 'pinuser@bogota.com') {
+            return User.reconstitute({
+              id: 'usr-pin-1',
+              tenantId: 'tnt-uuid-1',
+              email: 'pinuser@bogota.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.ACTIVE,
+              passwordHash: PasswordHasher.hash('4321'),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
           if (email === 'bloqueado@bogota.com') {
             return User.reconstitute({
               id: 'usr-bloqueado-1',
@@ -237,6 +250,36 @@ describe('Identity & Access Control (HU-03)', () => {
           email: 'noexiste@bogota.com',
         }),
       ).rejects.toThrow('No existe ningún usuario registrado');
+    });
+
+    it('debe iniciar sesión exitosamente cuando el PIN o contraseña es correcto', async () => {
+      const result = await authController.login({
+        tenantSlug: 'banco-bogota',
+        email: 'pinuser@bogota.com',
+        password: '4321',
+      });
+
+      expect(result).toHaveProperty('access_token');
+      expect(result.user.email).toBe('pinuser@bogota.com');
+    });
+
+    it('debe lanzar UnauthorizedException si el PIN o contraseña es incorrecto', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: 'banco-bogota',
+          email: 'pinuser@bogota.com',
+          password: '0000',
+        }),
+      ).rejects.toThrow('El PIN o contraseña ingresada es incorrecta.');
+    });
+
+    it('debe lanzar UnauthorizedException si el usuario tiene PIN pero no se envía en el login', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: 'banco-bogota',
+          email: 'pinuser@bogota.com',
+        }),
+      ).rejects.toThrow('El PIN o contraseña ingresada es incorrecta.');
     });
 
     it('debe lanzar ForbiddenException si el usuario está bloqueado', async () => {

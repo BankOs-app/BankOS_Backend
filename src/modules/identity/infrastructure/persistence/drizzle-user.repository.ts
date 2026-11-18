@@ -27,12 +27,14 @@ export class DrizzleUserRepository implements UserRepository, OnModuleInit {
           email VARCHAR(150) NOT NULL,
           role VARCHAR(20) NOT NULL DEFAULT 'customer',
           status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+          password_hash VARCHAR(255),
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           CONSTRAINT users_tenant_email_unique UNIQUE(tenant_id, email)
         );
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
       `);
-      this.logger.log('Tabla public.users verificada o inicializada.');
+      this.logger.log('Tabla public.users verificada o inicializada con soporte de password_hash.');
     } catch {
       this.logger.warn('No se pudo verificar la tabla public.users en el arranque.');
     }
@@ -45,6 +47,7 @@ export class DrizzleUserRepository implements UserRepository, OnModuleInit {
       email: user.getEmail(),
       role: user.getRole(),
       status: user.getStatus(),
+      passwordHash: user.getPasswordHash(),
       createdAt: user.getCreatedAt(),
       updatedAt: user.getUpdatedAt(),
     });
@@ -56,6 +59,7 @@ export class DrizzleUserRepository implements UserRepository, OnModuleInit {
       .set({
         role: user.getRole(),
         status: user.getStatus(),
+        passwordHash: user.getPasswordHash(),
         updatedAt: user.getUpdatedAt(),
       })
       .where(eq(usersTable.id, user.getId()));
@@ -104,6 +108,7 @@ export class DrizzleUserRepository implements UserRepository, OnModuleInit {
       email: row.email,
       role: row.role as UserRole,
       status: row.status as UserStatus,
+      passwordHash: row.passwordHash ?? undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });

@@ -22,6 +22,7 @@ import { RolesGuard } from '../../../identity/presentation/guards/roles.guard';
 import { TenantMatchGuard } from '../../../identity/presentation/guards/tenant-match.guard';
 import { Roles } from '../../../identity/presentation/decorators/roles.decorator';
 import { CurrentUser } from '../../../identity/presentation/decorators/current-user.decorator';
+import { Public } from '../../../identity/presentation/decorators/public.decorator';
 import { UserRole } from '../../../identity/domain/value-objects/user-role.enum';
 import { AuthenticatedUser } from '../../../identity/domain/value-objects/authenticated-user.vo';
 import { CreateCustomerUseCase } from '../../application/use-cases/create-customer.use-case';
@@ -62,6 +63,35 @@ export class CustomersController {
       documentNumber: dto.documentNumber,
       email: dto.email,
       phone: dto.phone,
+      pin: dto.pin,
+      password: dto.password,
+    });
+  }
+
+  @Public()
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Auto-registro / Onboarding de cliente bancario desde la App Móvil Flutter',
+    description:
+      'Permite que un nuevo cliente se registre directamente en la institución bancaria indicando sus datos personales y su PIN o contraseña.',
+  })
+  @ApiOkResponse({ type: CustomerResponseDto })
+  @ApiConflictResponse({
+    description: 'Documento o email ya registrado en el tenant.',
+  })
+  async register(
+    @Param('slug') slug: string,
+    @Body() dto: CreateCustomerRequestDto,
+  ): Promise<CustomerResponseDto> {
+    return this.createCustomerUseCase.execute({
+      tenantSlug: slug,
+      fullName: dto.fullName,
+      documentNumber: dto.documentNumber,
+      email: dto.email,
+      phone: dto.phone,
+      pin: dto.pin,
+      password: dto.password,
     });
   }
 
