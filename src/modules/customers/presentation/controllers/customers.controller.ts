@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -78,14 +79,20 @@ export class CustomersController {
   })
   @ApiOkResponse({ type: CustomerResponseDto })
   @ApiConflictResponse({
-    description: 'Documento o email ya registrado en el tenant.',
+    description: 'Documento o email ya registrado en el tenant o en otra institución.',
   })
   async register(
-    @Param('slug') slug: string,
     @Body() dto: CreateCustomerRequestDto,
+    @Param('slug') slug?: string,
   ): Promise<CustomerResponseDto> {
+    const targetSlug = slug || dto.tenantSlug;
+    if (!targetSlug || targetSlug.trim() === '') {
+      throw new BadRequestException(
+        'Debes indicar la institución bancaria (tenantSlug) donde deseas registrar tu cuenta.',
+      );
+    }
     return this.createCustomerUseCase.execute({
-      tenantSlug: slug,
+      tenantSlug: targetSlug,
       fullName: dto.fullName,
       documentNumber: dto.documentNumber,
       email: dto.email,

@@ -9,6 +9,15 @@ import {
 } from 'class-validator';
 
 export class CreateCustomerRequestDto {
+  @ApiPropertyOptional({
+    example: 'banco-bogota',
+    description:
+      'Slug de la institución bancaria donde el cliente abre su cuenta (opcional si viene en la URL /tenants/:slug/customers/register)',
+  })
+  @IsOptional()
+  @IsString()
+  tenantSlug?: string;
+
   @ApiProperty({
     example: 'Carlos Alberto Rodríguez',
     description: 'Nombre y apellidos completos del cliente',
