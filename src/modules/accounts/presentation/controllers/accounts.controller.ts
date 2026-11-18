@@ -36,7 +36,7 @@ import { AccountResponseDto } from '../../application/dto/account-response.dto';
 @ApiTags('Cuentas Bancarias (HU-05 y HU-06)')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard, TenantMatchGuard)
-@Controller('tenants/:slug/accounts')
+@Controller(['tenants/:slug/accounts', 'accounts'])
 export class AccountsController {
   constructor(
     private readonly createAccountUseCase: CreateAccountUseCase,
@@ -93,10 +93,11 @@ export class AccountsController {
   })
   @ApiOkResponse({ type: [AccountResponseDto] })
   async listMyAccounts(
-    @Param('slug') slug: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Param('slug') slug?: string,
   ): Promise<AccountResponseDto[]> {
-    return this.getAccountUseCase.listByCustomer(slug, user.userId);
+    const tenantSlug = slug || user.tenantSlug;
+    return this.getAccountUseCase.listByCustomer(tenantSlug, user.userId);
   }
 
   @Get('customer/:customerId')

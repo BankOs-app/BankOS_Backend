@@ -59,7 +59,7 @@ export class CreateCustomerUseCase {
 
     const tenantId = tenant.getId();
 
-    // 1. Validar que no exista otro cliente con el mismo documento en este tenant
+    // 1. Validar que no exista otro cliente con el mismo documento en este tenant ni en otros bancos
     const existingDoc = await this.customerRepository.findByDocumentNumber(
       tenantId,
       input.documentNumber.trim(),
@@ -70,7 +70,18 @@ export class CreateCustomerUseCase {
       );
     }
 
-    // 2. Validar que no exista un usuario con el mismo email en este tenant
+    if (this.customerRepository.findAnyByDocumentNumber) {
+      const existingDocGlobal = await this.customerRepository.findAnyByDocumentNumber(
+        input.documentNumber.trim(),
+      );
+      if (existingDocGlobal && existingDocGlobal.getTenantId() !== tenantId) {
+        throw new ConflictException(
+          `El documento '${input.documentNumber}' ya se encuentra registrado en otra institución bancaria. Un usuario no puede tener cuentas en múltiples bancos de la plataforma.`,
+        );
+      }
+    }
+
+    // 2. Validar que no exista un usuario con el mismo email en este tenant ni en otros bancos
     const existingUser = await this.userRepository.findByEmail(
       tenantId,
       input.email.trim().toLowerCase(),
@@ -79,6 +90,17 @@ export class CreateCustomerUseCase {
       throw new ConflictException(
         `El correo '${input.email}' ya se encuentra registrado en esta institución.`,
       );
+    }
+
+    if (this.userRepository.findAnyByEmail) {
+      const existingGlobalUser = await this.userRepository.findAnyByEmail(
+        input.email.trim().toLowerCase(),
+      );
+      if (existingGlobalUser && existingGlobalUser.getTenantId() !== tenantId) {
+        throw new ConflictException(
+          `El correo '${input.email}' ya pertenece a un usuario en otra institución bancaria. Un usuario no puede registrarse en múltiples bancos de la plataforma.`,
+        );
+      }
     }
 
     // 3. Crear entidad User con su PIN o contraseña segura

@@ -33,7 +33,7 @@ import { CustomerResponseDto } from '../../application/dto/customer-response.dto
 @ApiTags('Customers & Users (HU-04)')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard, TenantMatchGuard)
-@Controller('tenants/:slug/customers')
+@Controller(['tenants/:slug/customers', 'customers'])
 export class CustomersController {
   constructor(
     private readonly createCustomerUseCase: CreateCustomerUseCase,

@@ -344,16 +344,16 @@ Para soportar clientes bancarios que utilicen la aplicación móvil en **Flutter
   ```
 - **Seguridad en Backend:** El PIN se hashea mediante `PasswordHasher` usando `node:crypto.scryptSync` con salt criptográfico de 16 bytes. El PIN en texto plano nunca se guarda en base de datos.
 
-### Flujo 2: Inicio de Sesión Oficial en Flutter
+### Flujo 2: Inicio de Sesión Oficial en Flutter (Sin necesidad de elegir banco)
 - **Endpoint:** `POST /api/v1/identity/login` (Público con Rate Limit de 10 peticiones/minuto por IP).
 - **Cuerpo (JSON):**
   ```json
   {
-    "tenantSlug": "banco-bogota",
     "email": "carlos@bogota.com",
     "password": "1234"
   }
   ```
+  *(Nota: `tenantSlug` es opcional; al ingresar correo y PIN, el backend resuelve automáticamente la institución bancaria a la que pertenece el usuario, ya que las políticas del sistema impiden que un usuario esté duplicado en múltiples bancos).*
 - **Respuesta (JSON):**
   ```json
   {
@@ -364,13 +364,19 @@ Para soportar clientes bancarios que utilicen la aplicación móvil en **Flutter
       "userId": "55555555-5555-4555-8555-555555555555",
       "tenantId": "11111111-1111-4111-8111-111111111111",
       "tenantSlug": "banco-bogota",
+      "tenantName": "Banco de Bogotá",
       "email": "carlos@bogota.com",
       "role": "customer"
     }
   }
   ```
 
-### Flujo 3: Face ID / Huella Dactilar en Flutter
+### Flujo 3: Consulta Directa de Cuentas y Perfil desde Flutter
+Con el token obtenido, la app de Flutter no necesita armar rutas complejas con slugs:
+- **Cuentas bancarias:** `GET /api/v1/accounts/me` (o `GET /api/v1/tenants/:slug/accounts/me`)
+- **Ficha del cliente:** `GET /api/v1/customers/me` (o `GET /api/v1/tenants/:slug/customers/me`)
+
+### Flujo 4: Face ID / Huella Dactilar en Flutter
 1. Al iniciar sesión por primera vez con el PIN, Flutter almacena el JWT o un token de refresco en el llavero seguro del sistema operativo (`flutter_secure_storage` -> iOS Keychain / Android Keystore).
 2. Cuando el usuario abre la app en ocasiones posteriores, Flutter ejecuta `local_auth.authenticate()` solicitando biometría local en el dispositivo.
 3. Si el sensor biométrico aprueba la identidad, Flutter recupera el token del llavero seguro y realiza las peticiones a la API directamente (ej. `GET /api/v1/tenants/:slug/accounts/me`).

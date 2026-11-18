@@ -29,6 +29,7 @@ describe('Customers & User Management (HU-04)', () => {
       update: jest.fn().mockResolvedValue(undefined),
       findById: jest.fn().mockResolvedValue(null),
       findByEmail: jest.fn().mockResolvedValue(null),
+      findAnyByEmail: jest.fn().mockResolvedValue(null),
       listByTenant: jest.fn().mockResolvedValue([]),
     };
 
@@ -38,6 +39,7 @@ describe('Customers & User Management (HU-04)', () => {
       findById: jest.fn().mockResolvedValue(null),
       findByUserId: jest.fn().mockResolvedValue(null),
       findByDocumentNumber: jest.fn().mockResolvedValue(null),
+      findAnyByDocumentNumber: jest.fn().mockResolvedValue(null),
       listByTenant: jest.fn().mockResolvedValue([]),
     };
   });
@@ -117,6 +119,58 @@ describe('Customers & User Management (HU-04)', () => {
 
       expect(userRepo.save).not.toHaveBeenCalled();
       expect(customerRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('debe rechazar registro si el documento ya existe en otro banco con ConflictException', async () => {
+      const customerInAnotherBank = Customer.create({
+        tenantId: 'otro-banco-id',
+        userId: 'usr-otro-banco',
+        fullName: 'Cliente Santander',
+        documentNumber: '1020304050',
+        email: 'santander@email.com',
+      });
+      (customerRepo.findAnyByDocumentNumber as jest.Mock).mockResolvedValue(customerInAnotherBank);
+
+      const useCase = new CreateCustomerUseCase(
+        tenantRepo,
+        userRepo,
+        customerRepo,
+      );
+
+      await expect(
+        useCase.execute({
+          tenantSlug: 'banco-bogota',
+          fullName: 'Carlos Rodríguez',
+          documentNumber: '1020304050',
+          email: 'carlos@email.com',
+        }),
+      ).rejects.toThrow('ya se encuentra registrado en otra institución bancaria');
+    });
+
+    it('debe rechazar registro si el correo ya existe en otro banco con ConflictException', async () => {
+      const { User } = await import('../identity/domain/entities/user.entity');
+      const { UserRole } = await import('../identity/domain/value-objects/user-role.enum');
+      const userInAnotherBank = User.create({
+        tenantId: 'otro-banco-id',
+        email: 'duplicado@email.com',
+        role: UserRole.CUSTOMER,
+      });
+      (userRepo.findAnyByEmail as jest.Mock).mockResolvedValue(userInAnotherBank);
+
+      const useCase = new CreateCustomerUseCase(
+        tenantRepo,
+        userRepo,
+        customerRepo,
+      );
+
+      await expect(
+        useCase.execute({
+          tenantSlug: 'banco-bogota',
+          fullName: 'Carlos Rodríguez',
+          documentNumber: '8877665544',
+          email: 'duplicado@email.com',
+        }),
+      ).rejects.toThrow('ya pertenece a un usuario en otra institución bancaria');
     });
   });
 

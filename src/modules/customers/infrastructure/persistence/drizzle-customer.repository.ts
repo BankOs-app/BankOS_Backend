@@ -107,6 +107,17 @@ export class DrizzleCustomerRepository
     return this.mapToDomain(rows[0]);
   }
 
+  async findAnyByDocumentNumber(documentNumber: string): Promise<Customer | null> {
+    const rows = await this.db
+      .select()
+      .from(customersTable)
+      .where(eq(customersTable.documentNumber, documentNumber.trim()))
+      .limit(1);
+
+    if (rows.length === 0) return null;
+    return this.mapToDomain(rows[0]);
+  }
+
   async listByTenant(tenantId: string): Promise<Customer[]> {
     const rows = await this.db
       .select()

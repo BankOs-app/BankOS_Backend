@@ -11,6 +11,7 @@ export interface CustomerRepository {
     tenantId: string,
     documentNumber: string,
   ): Promise<Customer | null>;
+  findAnyByDocumentNumber(documentNumber: string): Promise<Customer | null>;
   listByTenant(tenantId: string): Promise<Customer[]>;
 }
 

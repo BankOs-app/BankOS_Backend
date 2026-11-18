@@ -27,6 +27,8 @@ import { Public } from '../decorators/public.decorator';
 import { AuthenticatedUser } from '../../domain/value-objects/authenticated-user.vo';
 import { UserRole } from '../../domain/value-objects/user-role.enum';
 import { UserStatus } from '../../domain/value-objects/user-status.enum';
+import type { User } from '../../domain/entities/user.entity';
+import type { Tenant } from '../../../tenants/domain/entities/tenant.entity';
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TENANT_REPOSITORY } from '../../../tenants/application/ports/tenant.repository.port';
@@ -37,11 +39,13 @@ import type { UserRepository } from '../../application/ports/user.repository.por
 export class LoginRequestDto {
   @ApiProperty({
     example: 'banco-bogota',
-    description: 'Slug de la institución bancaria a la que pertenece el usuario',
+    description:
+      'Slug de la institución bancaria (opcional: si no se envía, el backend resuelve el banco automáticamente por el correo del usuario)',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty({ message: 'El slug del tenant no puede estar vacío.' })
-  tenantSlug: string;
+  @IsOptional()
+  tenantSlug?: string;
 
   @ApiProperty({
     example: 'carlos@bogota.com',
@@ -51,8 +55,8 @@ export class LoginRequestDto {
   email: string;
 
   @ApiProperty({
-    example: '123456',
-    description: 'Contraseña o PIN (simulado para demostración en vivo)',
+    example: '1234',
+    description: 'PIN o contraseña del usuario',
     required: false,
   })
   @IsString()
@@ -114,23 +118,45 @@ export class AuthController {
       throw new BadRequestException('Servicio de repositorios no disponible.');
     }
 
-    const tenant = await this.tenantRepository.findBySlug(
-      dto.tenantSlug.trim().toLowerCase(),
-    );
-    if (!tenant) {
-      throw new NotFoundException(
-        `La institución bancaria con identificador '${dto.tenantSlug}' no existe.`,
-      );
-    }
+    const email = dto.email.trim().toLowerCase();
+    let user: User | null = null;
+    let tenant: Tenant | null = null;
 
-    const user = await this.userRepository.findByEmail(
-      tenant.getId(),
-      dto.email.trim().toLowerCase(),
-    );
-    if (!user) {
-      throw new UnauthorizedException(
-        `No existe ningún usuario registrado con el correo '${dto.email}' en ${tenant.getName()}.`,
+    if (dto.tenantSlug && dto.tenantSlug.trim() !== '') {
+      tenant = await this.tenantRepository.findBySlug(
+        dto.tenantSlug.trim().toLowerCase(),
       );
+      if (!tenant) {
+        throw new NotFoundException(
+          `La institución bancaria con identificador '${dto.tenantSlug}' no existe.`,
+        );
+      }
+
+      user = await this.userRepository.findByEmail(tenant.getId(), email);
+      if (!user) {
+        throw new UnauthorizedException(
+          `No existe ningún usuario registrado con el correo '${dto.email}' en ${tenant.getName()}.`,
+        );
+      }
+    } else {
+      // Flujo de App Móvil Flutter: El usuario solo ingresa su correo y PIN.
+      // Se resuelve automáticamente la institución bancaria a la que pertenece.
+      user = this.userRepository.findAnyByEmail
+        ? await this.userRepository.findAnyByEmail(email)
+        : null;
+
+      if (!user) {
+        throw new UnauthorizedException(
+          `No existe ningún usuario registrado con el correo '${dto.email}'.`,
+        );
+      }
+
+      tenant = await this.tenantRepository.findById(user.getTenantId());
+      if (!tenant) {
+        throw new NotFoundException(
+          'La institución bancaria asociada a este usuario no fue encontrada.',
+        );
+      }
     }
 
     if (user.getStatus() !== UserStatus.ACTIVE) {
