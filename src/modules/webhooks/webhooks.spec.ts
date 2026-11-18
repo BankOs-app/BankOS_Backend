@@ -104,7 +104,7 @@ describe('Webhooks & Outbox Pattern (HU-15)', () => {
 
       expect(list.length).toBe(1);
       expect(list[0].url).toBe('https://webhook.site/test');
-      expect((list[0] as Record<string, unknown>).secret).toBeUndefined();
+      expect((list[0] as unknown as Record<string, unknown>).secret).toBeUndefined();
     });
   });
 

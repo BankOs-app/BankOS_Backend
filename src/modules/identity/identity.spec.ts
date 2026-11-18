@@ -7,6 +7,10 @@ import { UserRole } from './domain/value-objects/user-role.enum';
 import { AuthenticatedUser } from './domain/value-objects/authenticated-user.vo';
 import { TenantMatchGuard } from './presentation/guards/tenant-match.guard';
 import { RolesGuard } from './presentation/guards/roles.guard';
+import { AuthController } from './presentation/controllers/auth.controller';
+import { Tenant } from '../tenants/domain/entities/tenant.entity';
+import { User } from './domain/entities/user.entity';
+import { UserStatus } from './domain/value-objects/user-status.enum';
 
 describe('Identity & Access Control (HU-03)', () => {
   let tokenService: JwtTokenService;
@@ -152,12 +156,7 @@ describe('Identity & Access Control (HU-03)', () => {
     let mockTenantRepo: any;
     let mockUserRepo: any;
 
-    beforeEach(async () => {
-      const { AuthController } = await import('./presentation/controllers/auth.controller');
-      const { Tenant } = await import('../tenants/domain/entities/tenant.entity');
-      const { User } = await import('./domain/entities/user.entity');
-      const { UserStatus } = await import('./domain/value-objects/user-status.enum');
-
+    beforeEach(() => {
       mockTenantRepo = {
         findBySlug: jest.fn().mockImplementation(async (slug: string) => {
           if (slug === 'banco-bogota') {

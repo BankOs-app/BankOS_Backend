@@ -80,6 +80,7 @@ describe('Deposit Operations (HU-07)', () => {
       findById: jest.fn().mockResolvedValue(null),
       findByTenant: jest.fn().mockResolvedValue([]),
       findByAccount: jest.fn().mockResolvedValue([]),
+      findPaginated: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 10 }),
     };
 
     ledgerRepo = {
@@ -275,6 +276,7 @@ describe('Withdraw Operations (HU-08)', () => {
       findById: jest.fn().mockResolvedValue(null),
       findByTenant: jest.fn().mockResolvedValue([]),
       findByAccount: jest.fn().mockResolvedValue([]),
+      findPaginated: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 10 }),
     };
 
     ledgerRepo = {
@@ -527,6 +529,7 @@ describe('Transfer Operations (HU-09)', () => {
       findById: jest.fn().mockResolvedValue(null),
       findByTenant: jest.fn().mockResolvedValue([]),
       findByAccount: jest.fn().mockResolvedValue([]),
+      findPaginated: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 10 }),
     };
 
     ledgerRepo = {
