@@ -14,7 +14,7 @@ export class BlockUserUseCase {
   ) {}
 
   async execute(userId: string, tenantId: string): Promise<void> {
-    const user = await this.userRepository.findById(userId);
+    const user = await this.userRepository.findById(userId, tenantId);
     if (!user || user.getTenantId() !== tenantId) {
       throw new NotFoundException('Usuario no encontrado en esta institución.');
     }

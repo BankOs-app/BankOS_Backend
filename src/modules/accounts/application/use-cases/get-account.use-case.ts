@@ -50,7 +50,10 @@ export class GetAccountUseCase {
       throw new NotFoundException(`No existe el tenant '${tenantSlug}'`);
     }
 
-    const accounts = await this.accountRepository.listByCustomer(customerId);
+    const accounts = await this.accountRepository.listByCustomer(
+      customerId,
+      tenant.getId(),
+    );
     // Filtrar para asegurar que pertenezcan al tenant resuelto
     const tenantAccounts = accounts.filter(
       (a) => a.getTenantId() === tenant.getId(),

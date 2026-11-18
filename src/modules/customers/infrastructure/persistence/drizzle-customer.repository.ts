@@ -1,53 +1,29 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
-import { Pool } from 'pg';
-import { DRIZZLE, PG_POOL } from '../../../../database/database.module';
+import { Inject, Injectable } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
+import { DRIZZLE } from '../../../../database/database.module';
 import type { DrizzleDb } from '../../../../database/database.module';
-import { customersTable, CustomerRecord } from '../../../../database/schema/users-customers.schema';
+import { getTenantTables } from '../../../../database/schema/tenant-tables.factory';
+import { TenantSchemaResolver } from '../../../../database/tenant-schema-resolver.service';
 import { Customer } from '../../domain/entities/customer.entity';
 import type { CustomerRepository } from '../../application/ports/customer.repository.port';
 
 @Injectable()
-export class DrizzleCustomerRepository
-  implements CustomerRepository, OnModuleInit
-{
-  private readonly logger = new Logger(DrizzleCustomerRepository.name);
-
+export class DrizzleCustomerRepository implements CustomerRepository {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
-    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly schemaResolver: TenantSchemaResolver,
   ) {}
 
-  async onModuleInit(): Promise<void> {
-    try {
-      await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS public.customers (
-          id UUID PRIMARY KEY,
-          tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-          user_id UUID NOT NULL UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
-          full_name VARCHAR(150) NOT NULL,
-          document_number VARCHAR(50) NOT NULL,
-          email VARCHAR(150) NOT NULL,
-          phone VARCHAR(30),
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          CONSTRAINT customers_tenant_doc_unique UNIQUE(tenant_id, document_number)
-        );
-      `);
-      this.logger.log('Tabla public.customers verificada o inicializada.');
-    } catch {
-      this.logger.warn('No se pudo verificar la tabla public.customers en el arranque.');
-    }
-  }
-
   async save(customer: Customer): Promise<void> {
-    await this.db.insert(customersTable).values({
+    const info = await this.schemaResolver.resolve(customer.getTenantId());
+    const tables = getTenantTables(info.schemaName);
+
+    await this.db.insert(tables.customersTable).values({
       id: customer.getId(),
-      tenantId: customer.getTenantId(),
       userId: customer.getUserId(),
       fullName: customer.getFullName(),
-      documentNumber: customer.getDocumentNumber(),
-      email: customer.getEmail(),
+      documentNumber: customer.getDocumentNumber().trim(),
+      email: customer.getEmail().trim().toLowerCase(),
       phone: customer.getPhone(),
       createdAt: customer.getCreatedAt(),
       updatedAt: customer.getUpdatedAt(),
@@ -55,82 +31,126 @@ export class DrizzleCustomerRepository
   }
 
   async update(customer: Customer): Promise<void> {
+    const info = await this.schemaResolver.resolve(customer.getTenantId());
+    const tables = getTenantTables(info.schemaName);
+
     await this.db
-      .update(customersTable)
+      .update(tables.customersTable)
       .set({
         fullName: customer.getFullName(),
-        email: customer.getEmail(),
+        email: customer.getEmail().trim().toLowerCase(),
         phone: customer.getPhone(),
         updatedAt: customer.getUpdatedAt(),
       })
-      .where(eq(customersTable.id, customer.getId()));
+      .where(eq(tables.customersTable.id, customer.getId()));
   }
 
-  async findById(id: string): Promise<Customer | null> {
-    const rows = await this.db
-      .select()
-      .from(customersTable)
-      .where(eq(customersTable.id, id))
-      .limit(1);
+  async findById(id: string, tenantId?: string): Promise<Customer | null> {
+    if (tenantId) {
+      const info = await this.schemaResolver.resolve(tenantId);
+      const tables = getTenantTables(info.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.customersTable)
+        .where(eq(tables.customersTable.id, id))
+        .limit(1);
 
-    if (rows.length === 0) return null;
-    return this.mapToDomain(rows[0]);
+      if (rows.length === 0) return null;
+      return this.mapToDomain(rows[0], info.tenantId);
+    }
+
+    const schemas = await this.schemaResolver.getAllActiveSchemas();
+    for (const schema of schemas) {
+      const tables = getTenantTables(schema.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.customersTable)
+        .where(eq(tables.customersTable.id, id))
+        .limit(1);
+
+      if (rows.length > 0) {
+        return this.mapToDomain(rows[0], schema.tenantId);
+      }
+    }
+    return null;
   }
 
-  async findByUserId(userId: string): Promise<Customer | null> {
-    const rows = await this.db
-      .select()
-      .from(customersTable)
-      .where(eq(customersTable.userId, userId))
-      .limit(1);
+  async findByUserId(userId: string, tenantId?: string): Promise<Customer | null> {
+    if (tenantId) {
+      const info = await this.schemaResolver.resolve(tenantId);
+      const tables = getTenantTables(info.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.customersTable)
+        .where(eq(tables.customersTable.userId, userId))
+        .limit(1);
 
-    if (rows.length === 0) return null;
-    return this.mapToDomain(rows[0]);
+      if (rows.length === 0) return null;
+      return this.mapToDomain(rows[0], info.tenantId);
+    }
+
+    const schemas = await this.schemaResolver.getAllActiveSchemas();
+    for (const schema of schemas) {
+      const tables = getTenantTables(schema.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.customersTable)
+        .where(eq(tables.customersTable.userId, userId))
+        .limit(1);
+
+      if (rows.length > 0) {
+        return this.mapToDomain(rows[0], schema.tenantId);
+      }
+    }
+    return null;
   }
 
   async findByDocumentNumber(
     tenantId: string,
     documentNumber: string,
   ): Promise<Customer | null> {
+    const info = await this.schemaResolver.resolve(tenantId);
+    const tables = getTenantTables(info.schemaName);
+
     const rows = await this.db
       .select()
-      .from(customersTable)
-      .where(
-        and(
-          eq(customersTable.tenantId, tenantId),
-          eq(customersTable.documentNumber, documentNumber.trim()),
-        ),
-      )
+      .from(tables.customersTable)
+      .where(eq(tables.customersTable.documentNumber, documentNumber.trim()))
       .limit(1);
 
     if (rows.length === 0) return null;
-    return this.mapToDomain(rows[0]);
+    return this.mapToDomain(rows[0], info.tenantId);
   }
 
   async findAnyByDocumentNumber(documentNumber: string): Promise<Customer | null> {
-    const rows = await this.db
-      .select()
-      .from(customersTable)
-      .where(eq(customersTable.documentNumber, documentNumber.trim()))
-      .limit(1);
+    const schemas = await this.schemaResolver.getAllActiveSchemas();
+    for (const schema of schemas) {
+      const tables = getTenantTables(schema.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.customersTable)
+        .where(eq(tables.customersTable.documentNumber, documentNumber.trim()))
+        .limit(1);
 
-    if (rows.length === 0) return null;
-    return this.mapToDomain(rows[0]);
+      if (rows.length > 0) {
+        return this.mapToDomain(rows[0], schema.tenantId);
+      }
+    }
+    return null;
   }
 
   async listByTenant(tenantId: string): Promise<Customer[]> {
-    const rows = await this.db
-      .select()
-      .from(customersTable)
-      .where(eq(customersTable.tenantId, tenantId));
+    const info = await this.schemaResolver.resolve(tenantId);
+    const tables = getTenantTables(info.schemaName);
 
-    return rows.map((r) => this.mapToDomain(r));
+    const rows = await this.db.select().from(tables.customersTable);
+    return rows.map((r) => this.mapToDomain(r, info.tenantId));
   }
 
-  private mapToDomain(row: CustomerRecord): Customer {
+  private mapToDomain(row: any, tenantId: string): Customer {
     return Customer.reconstitute({
       id: row.id,
-      tenantId: row.tenantId,
+      tenantId,
       userId: row.userId,
       fullName: row.fullName,
       documentNumber: row.documentNumber,
@@ -141,4 +161,3 @@ export class DrizzleCustomerRepository
     });
   }
 }
-

@@ -1,112 +1,86 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
-import { Pool } from 'pg';
-import { DRIZZLE, PG_POOL } from '../../../../database/database.module';
+import { DRIZZLE } from '../../../../database/database.module';
 import type { DrizzleDb } from '../../../../database/database.module';
-import {
-  idempotencyRecordsTable,
-  IdempotencyRecordDb,
-} from '../../../../database/schema/idempotency.schema';
+import { getTenantTables } from '../../../../database/schema/tenant-tables.factory';
+import { TenantSchemaResolver } from '../../../../database/tenant-schema-resolver.service';
 import { IdempotencyRecord } from '../../domain/entities/idempotency-record.entity';
 import { IdempotencyStatus } from '../../domain/value-objects/idempotency-status.enum';
 import type { IdempotencyRepository } from '../../application/ports/idempotency.repository.port';
 
 @Injectable()
-export class DrizzleIdempotencyRepository
-  implements IdempotencyRepository, OnModuleInit
-{
-  private readonly logger = new Logger(DrizzleIdempotencyRepository.name);
-
+export class DrizzleIdempotencyRepository implements IdempotencyRepository {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
-    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly schemaResolver: TenantSchemaResolver,
   ) {}
-
-  async onModuleInit(): Promise<void> {
-    try {
-      await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS public.idempotency_records (
-          id UUID PRIMARY KEY,
-          tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-          user_id VARCHAR(100) NOT NULL,
-          idempotency_key VARCHAR(100) NOT NULL,
-          request_hash VARCHAR(64) NOT NULL,
-          status VARCHAR(20) NOT NULL DEFAULT 'PROCESSING',
-          response_status INTEGER,
-          response_body TEXT,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          expires_at TIMESTAMPTZ NOT NULL,
-          CONSTRAINT idempotency_tenant_user_key_unique UNIQUE(tenant_id, user_id, idempotency_key)
-        );
-      `);
-      this.logger.log('Tabla public.idempotency_records verificada o inicializada.');
-    } catch {
-      this.logger.warn(
-        'No se pudo verificar la tabla public.idempotency_records en el arranque.',
-      );
-    }
-  }
 
   async findByKey(
     tenantId: string,
     userId: string,
     key: string,
   ): Promise<IdempotencyRecord | null> {
+    const info = await this.schemaResolver.resolve(tenantId);
+    const tables = getTenantTables(info.schemaName);
+
     const rows = await this.db
       .select()
-      .from(idempotencyRecordsTable)
+      .from(tables.idempotencyRecordsTable)
       .where(
         and(
-          eq(idempotencyRecordsTable.tenantId, tenantId),
-          eq(idempotencyRecordsTable.userId, userId),
-          eq(idempotencyRecordsTable.key, key.trim()),
+          eq(tables.idempotencyRecordsTable.userId, userId),
+          eq(tables.idempotencyRecordsTable.idempotencyKey, key.trim()),
         ),
       )
       .limit(1);
 
     if (rows.length === 0) return null;
-    return this.mapToDomain(rows[0]);
+    return this.mapToDomain(rows[0], info.tenantId);
   }
 
   async save(record: IdempotencyRecord): Promise<void> {
-    await this.db.insert(idempotencyRecordsTable).values({
+    const info = await this.schemaResolver.resolve(record.getTenantId());
+    const tables = getTenantTables(info.schemaName);
+
+    await this.db.insert(tables.idempotencyRecordsTable).values({
       id: record.getId(),
-      tenantId: record.getTenantId(),
       userId: record.getUserId(),
-      key: record.getKey(),
+      idempotencyKey: record.getKey(),
       requestHash: record.getRequestHash(),
       status: record.getStatus(),
-      responseStatus: record.getResponseStatus(),
-      responseBody: record.getResponseBody(),
+      responseCode: record.getResponseStatus() ?? null,
+      responseBody: record.getResponseBody() ? JSON.parse(record.getResponseBody()!) : null,
       createdAt: record.getCreatedAt(),
       expiresAt: record.getExpiresAt(),
     });
   }
 
   async update(record: IdempotencyRecord): Promise<void> {
+    const info = await this.schemaResolver.resolve(record.getTenantId());
+    const tables = getTenantTables(info.schemaName);
+
     await this.db
-      .update(idempotencyRecordsTable)
+      .update(tables.idempotencyRecordsTable)
       .set({
         status: record.getStatus(),
-        responseStatus: record.getResponseStatus(),
-        responseBody: record.getResponseBody(),
+        responseCode: record.getResponseStatus() ?? null,
+        responseBody: record.getResponseBody() ? JSON.parse(record.getResponseBody()!) : null,
       })
-      .where(eq(idempotencyRecordsTable.id, record.getId()));
+      .where(eq(tables.idempotencyRecordsTable.id, record.getId()));
   }
 
-  private mapToDomain(row: IdempotencyRecordDb): IdempotencyRecord {
+  private mapToDomain(row: any, tenantId: string): IdempotencyRecord {
     return IdempotencyRecord.reconstitute({
       id: row.id,
-      tenantId: row.tenantId,
+      tenantId,
       userId: row.userId,
-      key: row.key,
+      key: row.idempotencyKey,
       requestHash: row.requestHash,
       status: row.status as IdempotencyStatus,
-      responseStatus: row.responseStatus ?? undefined,
-      responseBody: row.responseBody ?? undefined,
+      responseStatus: row.responseCode ?? undefined,
+      responseBody: row.responseBody ? JSON.stringify(row.responseBody) : undefined,
       createdAt: row.createdAt,
       expiresAt: row.expiresAt,
     });
   }
 }
-

@@ -22,7 +22,7 @@ export interface PaginatedResult<T> {
 
 export interface TransactionRepository {
   save(transaction: Transaction): Promise<void>;
-  findById(id: string): Promise<Transaction | null>;
+  findById(id: string, tenantId?: string): Promise<Transaction | null>;
   findByTenant(tenantId: string): Promise<Transaction[]>;
   findByAccount(accountId: string): Promise<Transaction[]>;
   findPaginated(filter: TransactionQueryFilter): Promise<PaginatedResult<Transaction>>;

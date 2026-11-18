@@ -4,15 +4,14 @@ import { Pool } from 'pg';
 import { DRIZZLE, PG_POOL } from '../../../../database/database.module';
 import type { DrizzleDb } from '../../../../database/database.module';
 import { tenantsTable, TenantRecord } from '../../../../database/schema/tenants.schema';
+import { TenantSchemaResolver } from '../../../../database/tenant-schema-resolver.service';
 import { Tenant } from '../../domain/entities/tenant.entity';
 import { TenantStatus } from '../../domain/value-objects/tenant-status.enum';
 import type { TenantRepository } from '../../application/ports/tenant.repository.port';
 
 /**
  * Adaptador de persistencia para Tenants utilizando Drizzle ORM y PostgreSQL.
- *
- * Implementa el puerto `TenantRepository` respetando el principio de Inversión
- * de Dependencias (DIP) de SOLID.
+ * Administra la tabla central public.tenants (catálogo global del SaaS).
  */
 @Injectable()
 export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
@@ -21,12 +20,9 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
     @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly schemaResolver: TenantSchemaResolver,
   ) {}
 
-  /**
-   * Al iniciar el módulo, aseguramos que la tabla central public.tenants
-   * exista si aún no se han ejecutado las migraciones manuales.
-   */
   async onModuleInit(): Promise<void> {
     try {
       await this.pool.query(`
@@ -40,10 +36,10 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
       `);
-      this.logger.log('Tabla public.tenants verificada o inicializada.');
+      this.logger.log('Tabla central public.tenants verificada.');
     } catch {
       this.logger.warn(
-        'No se pudo verificar la tabla public.tenants en el arranque (posiblemente la DB aún no está disponible en este momento).',
+        'No se pudo verificar la tabla public.tenants en el arranque.',
       );
     }
   }
@@ -58,6 +54,12 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       createdAt: tenant.getCreatedAt(),
       updatedAt: tenant.getUpdatedAt(),
     });
+
+    this.schemaResolver.registerInCache({
+      schemaName: tenant.getSchemaName(),
+      tenantId: tenant.getId(),
+      slug: tenant.getSlug().getValue(),
+    });
   }
 
   async update(tenant: Tenant): Promise<void> {
@@ -69,6 +71,12 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
         updatedAt: tenant.getUpdatedAt(),
       })
       .where(eq(tenantsTable.id, tenant.getId()));
+
+    this.schemaResolver.registerInCache({
+      schemaName: tenant.getSchemaName(),
+      tenantId: tenant.getId(),
+      slug: tenant.getSlug().getValue(),
+    });
   }
 
   async findBySlug(slug: string): Promise<Tenant | null> {
@@ -82,7 +90,13 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       return null;
     }
 
-    return this.mapToDomain(rows[0]);
+    const tenant = this.mapToDomain(rows[0]);
+    this.schemaResolver.registerInCache({
+      schemaName: tenant.getSchemaName(),
+      tenantId: tenant.getId(),
+      slug: tenant.getSlug().getValue(),
+    });
+    return tenant;
   }
 
   async findById(id: string): Promise<Tenant | null> {
@@ -96,7 +110,13 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       return null;
     }
 
-    return this.mapToDomain(rows[0]);
+    const tenant = this.mapToDomain(rows[0]);
+    this.schemaResolver.registerInCache({
+      schemaName: tenant.getSchemaName(),
+      tenantId: tenant.getId(),
+      slug: tenant.getSlug().getValue(),
+    });
+    return tenant;
   }
 
   async findAll(): Promise<Tenant[]> {

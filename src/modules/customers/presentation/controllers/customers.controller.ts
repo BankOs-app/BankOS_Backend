@@ -120,7 +120,7 @@ export class CustomersController {
   async getMyProfile(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CustomerResponseDto> {
-    return this.getCustomerUseCase.findByUserId(user.userId);
+    return this.getCustomerUseCase.findByUserId(user.userId, user.tenantId);
   }
 
   @Get(':id')
