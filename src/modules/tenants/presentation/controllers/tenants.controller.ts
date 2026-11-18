@@ -57,6 +57,10 @@ export class TenantsController {
     return this.registerTenantUseCase.execute({
       name: dto.name,
       slug: dto.slug,
+      primaryCurrency: dto.primaryCurrency,
+      maxTransactionAmount: dto.maxTransactionAmount,
+      feeType: dto.feeType,
+      feeValue: dto.feeValue,
     });
   }
 

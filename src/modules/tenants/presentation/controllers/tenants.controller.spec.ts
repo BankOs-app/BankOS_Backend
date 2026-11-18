@@ -57,11 +57,19 @@ describe('TenantsController', () => {
     const result = await controller.register({
       name: 'Banco Prueba',
       slug: 'banco-prueba',
+      primaryCurrency: 'COP' as any,
+      maxTransactionAmount: '50000000.00',
+      feeType: 'FIXED' as any,
+      feeValue: '0.0000',
     });
 
     expect(registerTenantUseCase.execute).toHaveBeenCalledWith({
       name: 'Banco Prueba',
       slug: 'banco-prueba',
+      primaryCurrency: 'COP',
+      maxTransactionAmount: '50000000.00',
+      feeType: 'FIXED',
+      feeValue: '0.0000',
     });
     expect(result).toEqual(mockResponse);
   });
