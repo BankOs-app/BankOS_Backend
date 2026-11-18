@@ -1,0 +1,147 @@
+{
+  "info": {
+    "name": "BankOS API - Colección Oficial de Demostración (HU-16)",
+    "description": "Colección completa para verificar los 3 escenarios críticos de evaluación: Aislamiento Multitenant, Idempotencia y Transferencia Multimoneda.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api/v1" },
+    { "key": "tenantBogota", "value": "banco-bogota" },
+    { "key": "tenantSantander", "value": "banco-santander" },
+    { "key": "tokenAdminBogota", "value": "" },
+    { "key": "tokenCustomerCarlos", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0. Autenticación & Tokens",
+      "item": [
+        {
+          "name": "Obtener Token Admin Bogotá",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"11111111-1111-4111-8111-111111111111\",\n  \"userId\": \"33333333-3333-4333-8333-333333333333\",\n  \"role\": \"admin\",\n  \"email\": \"admin@bogota.com\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/identity/token" }
+          }
+        },
+        {
+          "name": "Obtener Token Cliente Carlos (Bogotá)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"11111111-1111-4111-8111-111111111111\",\n  \"userId\": \"55555555-5555-4555-8555-555555555555\",\n  \"role\": \"customer\",\n  \"email\": \"carlos@bogota.com\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/identity/token" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Escenario 1: Aislamiento Multitenant (CA-HU-16-03)",
+      "item": [
+        {
+          "name": "Consultar Cuenta Válida en su Tenant (Éxito 200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenCustomerCarlos}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/tenants/{{tenantBogota}}/accounts/1001001001" }
+          }
+        },
+        {
+          "name": "Intento de Acceso Cruzado al Tenant Santander (Bloqueo 403 Forbidden)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenCustomerCarlos}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/tenants/{{tenantSantander}}/accounts/9009009001" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Escenario 2: Idempotencia y Reintentos (CA-HU-16-04)",
+      "item": [
+        {
+          "name": "1er Envío: Depósito con Idempotency-Key (201 Created)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenCustomerCarlos}}" },
+              { "key": "Idempotency-Key", "value": "a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6" },
+              { "key": "X-Correlation-ID", "value": "corr-idem-test-1" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"1001001001\",\n  \"amount\": \"150000.00\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/tenants/{{tenantBogota}}/transactions/deposits" }
+          }
+        },
+        {
+          "name": "2do Envío (Reintento simulado por red): Mismo Idempotency-Key (Respuesta Cacheada 201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenCustomerCarlos}}" },
+              { "key": "Idempotency-Key", "value": "a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6" },
+              { "key": "X-Correlation-ID", "value": "corr-idem-test-2" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"1001001001\",\n  \"amount\": \"150000.00\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/tenants/{{tenantBogota}}/transactions/deposits" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Escenario 3: Transferencia Multimoneda (CA-HU-16-05)",
+      "item": [
+        {
+          "name": "1. Previsualizar Transferencia USD a COP (Desglose exacto)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenCustomerCarlos}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountNumber\": \"1001001002\",\n  \"destinationAccountNumber\": \"2002002001\",\n  \"targetAmount\": \"400000.00\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/tenants/{{tenantBogota}}/transactions/preview" }
+          }
+        },
+        {
+          "name": "2. Ejecutar Transferencia Multimoneda (Débito y Crédito Atómico)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenCustomerCarlos}}" },
+              { "key": "Idempotency-Key", "value": "f47ac10b-58cc-4372-a567-0e02b2c3d479" },
+              { "key": "X-Correlation-ID", "value": "corr-transfer-multi-1" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountNumber\": \"1001001002\",\n  \"destinationAccountNumber\": \"2002002001\",\n  \"targetAmount\": \"400000.00\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/tenants/{{tenantBogota}}/transactions/transfers" }
+          }
+        }
+      ]
+    }
+  ]
+}
+

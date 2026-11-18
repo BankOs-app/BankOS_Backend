@@ -7,6 +7,7 @@ node_modules/
 
 # Compilación TypeScript (NestJS)
 dist/
+*.tsbuildinfo
 
 # Credenciales y variables de entorno (Secretos)
 .env*
@@ -22,3 +23,5 @@ coverage/
 .idea/
 *.iml
 .DS_Store
+Thumbs.db
+Desktop.ini

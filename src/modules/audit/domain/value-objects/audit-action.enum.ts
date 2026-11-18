@@ -1,0 +1,11 @@
+/**
+ * Catálogo de Acciones Administrativas Auditables (HU-14 - T01).
+ */
+export enum AuditAction {
+  UPDATE_SETTINGS = 'UPDATE_SETTINGS',
+  SET_EXCHANGE_RATE = 'SET_EXCHANGE_RATE',
+  CREATE_CUSTOMER = 'CREATE_CUSTOMER',
+  BLOCK_USER = 'BLOCK_USER',
+  UPDATE_ACCOUNT_STATUS = 'UPDATE_ACCOUNT_STATUS',
+}
+
