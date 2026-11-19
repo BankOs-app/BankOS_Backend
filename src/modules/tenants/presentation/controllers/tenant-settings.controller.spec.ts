@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TenantSettingsController } from './tenant-settings.controller';
+import { JwtAuthGuard } from '../../../identity/presentation/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../identity/presentation/guards/roles.guard';
+import { TenantMatchGuard } from '../../../identity/presentation/guards/tenant-match.guard';
 import { GetTenantSettingsUseCase } from '../../application/use-cases/get-tenant-settings.use-case';
 import { UpdateTenantSettingsUseCase } from '../../application/use-cases/update-tenant-settings.use-case';
 import { SetExchangeRateUseCase } from '../../application/use-cases/set-exchange-rate.use-case';
@@ -54,7 +57,14 @@ describe('TenantSettingsController', () => {
           useValue: getExchangeRatesUseCase,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(TenantMatchGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<TenantSettingsController>(TenantSettingsController);
   });

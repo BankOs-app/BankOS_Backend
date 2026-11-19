@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -108,7 +109,13 @@ export class AccountsController {
   async listByCustomer(
     @Param('slug') slug: string,
     @Param('customerId') customerId: string,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<AccountResponseDto[]> {
+    if (user && user.role === UserRole.CUSTOMER && user.userId !== customerId) {
+      throw new ForbiddenException(
+        'No tiene autorización para consultar las cuentas de otro cliente.',
+      );
+    }
     return this.getAccountUseCase.listByCustomer(slug, customerId);
   }
 
@@ -121,8 +128,20 @@ export class AccountsController {
   async findByNumber(
     @Param('slug') slug: string,
     @Param('accountNumber') accountNumber: string,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<AccountResponseDto> {
-    return this.getAccountUseCase.findByNumber(slug, accountNumber);
+    const account = await this.getAccountUseCase.findByNumber(slug, accountNumber);
+    if (
+      user &&
+      user.role === UserRole.CUSTOMER &&
+      account.customerId &&
+      account.customerId !== user.userId
+    ) {
+      throw new ForbiddenException(
+        'No tiene autorización para consultar una cuenta bancaria que no le pertenece.',
+      );
+    }
+    return account;
   }
 
   @Patch(':accountNumber/status')

@@ -17,7 +17,7 @@ jobs:
 
       - name: Verificar que no haya credenciales (Gitleaks)
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE:/path" zricethezav/gitleaks:latest detect --source="/path" --verbose --redact
+          docker run --rm -v "$GITHUB_WORKSPACE:/path" zricethezav/gitleaks:latest detect --source="/path" --config="/path/.gitleaks.toml" --verbose --redact
 
   # 2. Compilación, Linter y Pruebas técnicas (NestJS + TypeScript)
   test:

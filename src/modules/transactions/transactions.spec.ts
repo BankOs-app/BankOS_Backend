@@ -595,6 +595,36 @@ describe('Transfer Operations (HU-09)', () => {
       expect(preview.destinationCurrency).toBe(Currency.COP);
     });
 
+    it('debe convertir correctamente la comisión fija (FIXED) si la cuenta origen tiene moneda distinta a la principal', async () => {
+      // primaryCurrency: COP, feeValue: 2000 COP, tasa USD -> COP = 4000
+      // Comisión esperada en USD: 2000 / 4000 = 0.50 USD
+      mockSettings.update({
+        primaryCurrency: Currency.COP,
+        maxTransactionAmount: '50000000.00',
+        feeType: FeeType.FIXED,
+        feeValue: '2000.00',
+      });
+
+      const useCase = new PreviewTransferUseCase(
+        tenantRepo,
+        settingsRepo,
+        exchangeRateRepo,
+        accountRepo,
+      );
+
+      const preview = await useCase.execute({
+        tenantSlug: 'banco-bogota',
+        sourceAccountNumber: '3333333333', // Cuenta en USD
+        destinationAccountNumber: '4444444444', // Cuenta en COP
+        targetAmount: '400000.00', // 100 USD equivalentes
+      });
+
+      expect(preview.sourceEquivalentAmount).toBe('100.00');
+      expect(preview.feeAmount).toBe('0.50');
+      expect(preview.totalDebitAmount).toBe('100.50');
+      expect(preview.sourceCurrency).toBe(Currency.USD);
+    });
+
     it('CA-HU-09-03: debe rechazar preview si la cuenta destino no existe en el tenant', async () => {
       const useCase = new PreviewTransferUseCase(
         tenantRepo,
@@ -679,6 +709,39 @@ describe('Transfer Operations (HU-09)', () => {
       expect(result.totalDebited).toBe('102.00');
       expect(sourceAccountUsd.getBalance()).toBe('898.00');
       expect(destAccountCopFromUsd.getBalance()).toBe('400000.00');
+    });
+
+    it('debe ejecutar transferencia con tarifa fija (FIXED) convirtiendo feeValue de moneda base COP a cuenta origen USD', async () => {
+      // primaryCurrency: COP, feeValue: 2000 COP, tasa USD -> COP = 4000
+      // Comisión esperada en USD: 2000 / 4000 = 0.50 USD
+      mockSettings.update({
+        primaryCurrency: Currency.COP,
+        maxTransactionAmount: '50000000.00',
+        feeType: FeeType.FIXED,
+        feeValue: '2000.00',
+      });
+
+      const useCase = new TransferUseCase(
+        tenantRepo,
+        settingsRepo,
+        exchangeRateRepo,
+        accountRepo,
+        transactionRepo,
+        ledgerRepo,
+      );
+
+      const result = await useCase.execute({
+        tenantSlug: 'banco-bogota',
+        sourceAccountNumber: '3333333333', // Saldo inicial 898.00 USD
+        destinationAccountNumber: '4444444444',
+        targetAmount: '200000.00', // 50 USD equivalentes
+        idempotencyKey: 'transfer-key-fixed-converted',
+      });
+
+      expect(result.sourceEquivalentAmount).toBe('50.00');
+      expect(result.feeAmount).toBe('0.50');
+      expect(result.totalDebited).toBe('50.50');
+      expect(sourceAccountUsd.getBalance()).toBe('949.50'); // 1000.00 - 50.50
     });
 
     it('CA-HU-09-04: debe rechazar transferencia si el saldo es insuficiente para monto + comisiones', async () => {

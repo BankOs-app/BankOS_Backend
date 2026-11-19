@@ -197,6 +197,26 @@ describe('Identity & Access Control (HU-03)', () => {
           }
           return null;
         }),
+        findAll: jest.fn().mockImplementation(async () => [
+          Tenant.reconstitute({
+            id: 'tnt-uuid-1',
+            name: 'Banco de Bogotá',
+            slug: 'banco-bogota',
+            schemaName: 'tenant_banco_bogota',
+            status: 'ACTIVE' as any,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }),
+          Tenant.reconstitute({
+            id: 'tnt-uuid-2',
+            name: 'Banco Santander',
+            slug: 'banco-santander',
+            schemaName: 'tenant_banco_santander',
+            status: 'ACTIVE' as any,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }),
+        ]),
       };
 
       mockUserRepo = {
@@ -395,6 +415,39 @@ describe('Identity & Access Control (HU-03)', () => {
       });
       expect(sessionSantander.user.tenantSlug).toBe('banco-santander');
       expect(sessionSantander.user.userId).toBe('usr-carlos-santander');
+    });
+
+    it('debe permitir iniciar sesión enviando tenantId en lugar de tenantSlug', async () => {
+      const session = await authController.login({
+        tenantId: 'tnt-uuid-1',
+        email: 'pinuser@bogota.com',
+        password: '4321',
+      });
+      expect(session).toHaveProperty('access_token');
+      expect(session.user.tenantId).toBe('tnt-uuid-1');
+      expect(session.user.tenantSlug).toBe('banco-bogota');
+    });
+
+    it('debe emitir dev token resolviendo tenantSlug a partir de tenantId cuando no se envía slug', async () => {
+      const result = await authController.issueToken({
+        userId: 'usr-admin-1',
+        tenantId: 'tnt-uuid-1',
+        email: 'admin@bogota.com',
+        role: UserRole.ADMIN,
+      });
+      expect(result).toHaveProperty('access_token');
+      expect(result.user.tenantSlug).toBe('banco-bogota');
+    });
+
+    it('debe permitir iniciar sesión enviando tenantName comercial (flujo Flutter)', async () => {
+      const session = await authController.login({
+        tenantName: 'Banco de Bogotá',
+        email: 'pinuser@bogota.com',
+        password: '4321',
+      });
+      expect(session).toHaveProperty('access_token');
+      expect(session.user.tenantSlug).toBe('banco-bogota');
+      expect(session.user.tenantName).toBe('Banco de Bogotá');
     });
 
     it('debe lanzar ForbiddenException si el usuario está bloqueado', async () => {

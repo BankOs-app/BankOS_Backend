@@ -141,10 +141,38 @@ export class PreviewTransferUseCase {
 
     // 8. Calcular comisión adicional en la moneda de origen
     let feeNum = 0;
-    if (feeType === FeeType.FIXED) {
-      feeNum = feeValue;
-    } else {
+    const isVariableFee =
+      feeType === FeeType.VARIABLE || feeType === FeeType.PERCENTAGE;
+
+    if (isVariableFee) {
       feeNum = Number((sourceEquivalent * (feeValue / 100)).toFixed(2));
+    } else {
+      // Tarifa fija: feeValue está expresado en la moneda principal del tenant
+      const primaryCurrency = settings ? settings.getPrimaryCurrency() : sourceCurrency;
+      if (sourceCurrency === primaryCurrency) {
+        feeNum = feeValue;
+      } else {
+        // Convertir feeValue (en primaryCurrency) a la moneda de la cuenta origen
+        const directRate = await this.exchangeRateRepository.findRate(
+          tenant.getId(),
+          primaryCurrency,
+          sourceCurrency,
+        );
+        if (directRate) {
+          feeNum = Number((feeValue * Number(directRate.getRate())).toFixed(2));
+        } else {
+          const inverseRate = await this.exchangeRateRepository.findRate(
+            tenant.getId(),
+            sourceCurrency,
+            primaryCurrency,
+          );
+          if (inverseRate) {
+            feeNum = Number((feeValue / Number(inverseRate.getRate())).toFixed(2));
+          } else {
+            feeNum = feeValue;
+          }
+        }
+      }
     }
 
     const feeAmountStr = feeNum.toFixed(2);
@@ -155,7 +183,30 @@ export class PreviewTransferUseCase {
     // 9. Validar límite máximo configurado
     if (settings) {
       const maxLimit = Number(settings.getMaxTransactionAmount());
-      if (totalDebitNum > maxLimit) {
+      const primaryCurrency = settings.getPrimaryCurrency();
+      let totalDebitInPrimaryCurrency = totalDebitNum;
+
+      if (sourceCurrency !== primaryCurrency) {
+        const directRate = await this.exchangeRateRepository.findRate(
+          tenant.getId(),
+          sourceCurrency,
+          primaryCurrency,
+        );
+        if (directRate) {
+          totalDebitInPrimaryCurrency = totalDebitNum * Number(directRate.getRate());
+        } else {
+          const inverseRate = await this.exchangeRateRepository.findRate(
+            tenant.getId(),
+            primaryCurrency,
+            sourceCurrency,
+          );
+          if (inverseRate) {
+            totalDebitInPrimaryCurrency = totalDebitNum / Number(inverseRate.getRate());
+          }
+        }
+      }
+
+      if (totalDebitInPrimaryCurrency > maxLimit) {
         throw new BadRequestException(
           `El total a debitar (${totalDebitStr} ${sourceCurrency}) excede el límite máximo permitido por transacción (${settings.getMaxTransactionAmount()} ${settings.getPrimaryCurrency()}).`,
         );

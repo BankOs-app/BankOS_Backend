@@ -29,19 +29,19 @@ export class UpdateTenantSettingsRequestDto {
   maxTransactionAmount: string;
 
   @ApiProperty({
-    description: 'Tipo de comisión aplicada a transferencias salientes',
+    description: 'Tipo de comisión aplicada a transferencias salientes: FIXED (fija) o VARIABLE (variable/porcentual)',
     enum: FeeType,
     example: FeeType.FIXED,
   })
   @IsEnum(FeeType, {
-    message: 'El tipo de comisión debe ser FIXED o PERCENTAGE',
+    message: 'El tipo de comisión debe ser FIXED o VARIABLE',
   })
   @IsNotEmpty({ message: 'El tipo de comisión es obligatorio' })
   feeType: FeeType;
 
   @ApiProperty({
     description:
-      'Valor de la comisión. Si es FIXED es monto fijo no negativo; si es PERCENTAGE debe estar entre 0 y 100',
+      'Valor de la comisión. Si es FIXED es monto fijo no negativo; si es VARIABLE debe ser porcentaje entre 0 y 100',
     example: '2500.00',
   })
   @IsString({

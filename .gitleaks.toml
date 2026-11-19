@@ -1,0 +1,20 @@
+# Gitleaks Configuration for BankOS Backend
+# https://github.com/zricethezav/gitleaks
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist for non-secret HTTP Idempotency-Keys (UUIDs), demo seed hashes, test fixtures and documentation"
+paths = [
+    '''(?i)README\.md''',
+    '''(?i)docs/.*''',
+    '''(?i).*\.spec\.ts''',
+    '''(?i)src/database/seeds/.*''',
+    '''(?i)\.env\.example''',
+]
+regexes = [
+    '''(?i)idempotency[-_]?key''',
+    '''(?i)x-correlation-id''',
+    '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}''',
+]

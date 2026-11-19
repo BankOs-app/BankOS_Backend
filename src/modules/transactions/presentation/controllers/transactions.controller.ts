@@ -27,6 +27,7 @@ import { JwtAuthGuard } from '../../../identity/presentation/guards/jwt-auth.gua
 import { TenantMatchGuard } from '../../../identity/presentation/guards/tenant-match.guard';
 import { CurrentUser } from '../../../identity/presentation/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../../identity/domain/value-objects/authenticated-user.vo';
+import { UserRole } from '../../../identity/domain/value-objects/user-role.enum';
 import { IdempotencyInterceptor } from '../../../idempotency/presentation/interceptors/idempotency.interceptor';
 import { Idempotent } from '../../../idempotency/presentation/decorators/idempotent.decorator';
 import { DepositUseCase } from '../../application/use-cases/deposit.use-case';
@@ -148,12 +149,14 @@ export class TransactionsController {
     @Param('slug') slug: string,
     @Headers('idempotency-key') idempotencyKey: string,
     @Body() dto: WithdrawRequestDto,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<WithdrawResponseDto> {
     return this.withdrawUseCase.execute({
       tenantSlug: slug,
       accountNumber: dto.accountNumber,
       amount: dto.amount,
       idempotencyKey,
+      userId: user?.role === UserRole.CUSTOMER ? user.userId : undefined,
     });
   }
 
@@ -226,6 +229,7 @@ export class TransactionsController {
     @Param('slug') slug: string,
     @Headers('idempotency-key') idempotencyKey: string,
     @Body() dto: TransferRequestDto,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<TransferResponseDto> {
     return this.transferUseCase.execute({
       tenantSlug: slug,
@@ -233,6 +237,7 @@ export class TransactionsController {
       destinationAccountNumber: dto.destinationAccountNumber,
       targetAmount: dto.targetAmount,
       idempotencyKey,
+      userId: user?.role === UserRole.CUSTOMER ? user.userId : undefined,
     });
   }
 

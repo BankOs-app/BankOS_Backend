@@ -1,0 +1,6 @@
+# Gitleaks ignore file
+# Ignores false positive matches on non-secret Idempotency-Key headers
+README.md
+docs/BankOS_Demo_Postman_Collection.json
+docs/MANUAL_BACKEND_Y_ENDPOINTS_BANKOS.md
+docs/bankos-hackathon.md

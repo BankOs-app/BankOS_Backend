@@ -35,16 +35,40 @@ import { USER_REPOSITORY } from '../../application/ports/user.repository.port';
 import type { UserRepository } from '../../application/ports/user.repository.port';
 
 export class LoginRequestDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'banco-bogota',
     description:
       'Slug o identificador de la institución bancaria a la que pertenece el usuario (Requerimiento oficial Línea 72 de Proyecto.txt)',
   })
   @IsString()
-  @IsNotEmpty({
-    message: 'El identificador del banco (tenantSlug) es obligatorio para iniciar sesión.',
+  @IsOptional()
+  tenantSlug?: string;
+
+  @ApiPropertyOptional({
+    example: '11111111-1111-4111-8111-111111111111',
+    description: 'UUID de la institución bancaria (alternativa a tenantSlug)',
   })
-  tenantSlug: string;
+  @IsString()
+  @IsOptional()
+  tenantId?: string;
+
+  @ApiPropertyOptional({
+    example: 'Banco de Bogotá',
+    description:
+      'Nombre comercial de la institución bancaria seleccionado en la app de Flutter (ej. "Banco de Bogotá", "Banco Santander")',
+  })
+  @IsString()
+  @IsOptional()
+  tenantName?: string;
+
+  @ApiPropertyOptional({
+    example: 'Banco de Bogotá',
+    description:
+      'Identificador unificado: acepta nombre comercial del banco, slug o UUID indistintamente',
+  })
+  @IsString()
+  @IsOptional()
+  tenant?: string;
 
   @ApiProperty({
     example: 'carlos@bogota.com',
@@ -84,15 +108,19 @@ export class IssueDevTokenDto {
   @IsNotEmpty()
   userId: string;
 
-  @ApiProperty({ example: 'tnt-uuid-1', description: 'UUID del tenant' })
+  @ApiProperty({ example: 'tnt-uuid-1', description: 'UUID o identificador del tenant' })
   @IsString()
   @IsNotEmpty()
   tenantId: string;
 
-  @ApiProperty({ example: 'banco-bogota', description: 'Slug del tenant' })
+  @ApiPropertyOptional({
+    example: 'banco-bogota',
+    description:
+      'Slug del tenant (opcional; si se omite, se resuelve automáticamente con el tenantId)',
+  })
   @IsString()
-  @IsNotEmpty()
-  tenantSlug: string;
+  @IsOptional()
+  tenantSlug?: string;
 
   @ApiProperty({ example: 'admin@bancobogota.com', description: 'Email del usuario' })
   @IsEmail()
@@ -132,18 +160,36 @@ export class AuthController {
       throw new BadRequestException('Servicio de repositorios no disponible.');
     }
 
-    if (!dto.tenantSlug || dto.tenantSlug.trim() === '') {
+    const tenantIdentifier =
+      dto.tenant?.trim() ||
+      dto.tenantName?.trim() ||
+      dto.tenantSlug?.trim() ||
+      dto.tenantId?.trim();
+    if (!tenantIdentifier) {
       throw new BadRequestException(
         'El identificador del banco (tenantSlug) es obligatorio para iniciar sesión.',
       );
     }
 
-    const tenant = await this.tenantRepository.findBySlug(
-      dto.tenantSlug.trim().toLowerCase(),
+    let tenant = await this.tenantRepository.findBySlug(
+      tenantIdentifier.toLowerCase(),
     );
     if (!tenant) {
+      tenant = await this.tenantRepository.findById(tenantIdentifier);
+    }
+    if (!tenant) {
+      const allTenants = await this.tenantRepository.findAll();
+      const lower = tenantIdentifier.toLowerCase();
+      tenant =
+        allTenants.find(
+          (t) =>
+            t.getName().trim().toLowerCase() === lower ||
+            t.getSlug().getValue().toLowerCase() === lower,
+        ) ?? null;
+    }
+    if (!tenant) {
       throw new NotFoundException(
-        `La institución bancaria con identificador '${dto.tenantSlug}' no existe.`,
+        `La institución bancaria con identificador '${tenantIdentifier}' no existe.`,
       );
     }
 
@@ -204,11 +250,33 @@ export class AuthController {
       'Emite un token firmado con los claims obligatorios (tenant_id, user_id, role). Protegido con Rate Limiting de 10 peticiones/minuto por IP contra fuerza bruta.',
   })
   @ApiResponse({ status: 200, description: 'Token JWT generado exitosamente.' })
-  issueToken(@Body() dto: IssueDevTokenDto) {
+  async issueToken(@Body() dto: IssueDevTokenDto) {
+    let resolvedSlug = dto.tenantSlug;
+    if (!resolvedSlug && this.tenantRepository) {
+      let tenant =
+        (await this.tenantRepository.findById(dto.tenantId)) ??
+        (await this.tenantRepository.findBySlug(dto.tenantId));
+      if (!tenant) {
+        const all = await this.tenantRepository.findAll();
+        const lower = dto.tenantId.toLowerCase();
+        tenant =
+          all.find((t) => t.getName().trim().toLowerCase() === lower) ?? null;
+      }
+      if (tenant) {
+        resolvedSlug =
+          typeof tenant.getSlug() === 'object' && 'getValue' in tenant.getSlug()
+            ? (tenant.getSlug() as any).getValue()
+            : String(tenant.getSlug());
+      }
+    }
+    if (!resolvedSlug) {
+      resolvedSlug = dto.tenantId;
+    }
+
     const token = this.tokenService.generateToken({
       userId: dto.userId,
       tenantId: dto.tenantId,
-      tenantSlug: dto.tenantSlug,
+      tenantSlug: resolvedSlug,
       email: dto.email,
       role: dto.role,
     });
@@ -220,7 +288,7 @@ export class AuthController {
       user: {
         userId: dto.userId,
         tenantId: dto.tenantId,
-        tenantSlug: dto.tenantSlug,
+        tenantSlug: resolvedSlug,
         email: dto.email,
         role: dto.role,
       },
