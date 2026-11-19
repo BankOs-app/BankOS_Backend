@@ -26,6 +26,15 @@ export const tenantsTable = pgTable('tenants', {
   feeValue: numeric('fee_value', { precision: 18, scale: 4 })
     .notNull()
     .default('0.0000'),
+  primaryColor: varchar('primary_color', { length: 20 })
+    .notNull()
+    .default('#0A2540'),
+  accentColor: varchar('accent_color', { length: 20 })
+    .notNull()
+    .default('#0052FF'),
+  logoUrl: varchar('logo_url', { length: 255 })
+    .notNull()
+    .default('bankos'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

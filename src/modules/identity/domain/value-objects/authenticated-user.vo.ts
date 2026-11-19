@@ -13,6 +13,7 @@ export class AuthenticatedUser {
     public readonly tenantSlug: string,
     public readonly email: string,
     public readonly role: UserRole,
+    public readonly fullName?: string,
   ) {}
 
   public isAdmin(): boolean {

@@ -39,6 +39,9 @@ export class DrizzleTenantSettingsRepository implements TenantSettingsRepository
       maxTransactionAmount: settings.getMaxTransactionAmount(),
       feeType: settings.getFeeType(),
       feeValue: settings.getFeeValue(),
+      primaryColor: settings.getPrimaryColor(),
+      accentColor: settings.getAccentColor(),
+      logoUrl: settings.getLogoUrl(),
       createdAt: settings.getCreatedAt(),
       updatedAt: settings.getUpdatedAt(),
     });
@@ -55,6 +58,9 @@ export class DrizzleTenantSettingsRepository implements TenantSettingsRepository
         maxTransactionAmount: settings.getMaxTransactionAmount(),
         feeType: settings.getFeeType(),
         feeValue: settings.getFeeValue(),
+        primaryColor: settings.getPrimaryColor(),
+        accentColor: settings.getAccentColor(),
+        logoUrl: settings.getLogoUrl(),
         updatedAt: settings.getUpdatedAt(),
       })
       .where(eq(tables.tenantSettingsTable.id, settings.getId()));
@@ -68,6 +74,9 @@ export class DrizzleTenantSettingsRepository implements TenantSettingsRepository
       maxTransactionAmount: row.maxTransactionAmount,
       feeType: row.feeType as FeeType,
       feeValue: row.feeValue,
+      primaryColor: row.primaryColor ?? '#0A2540',
+      accentColor: row.accentColor ?? '#0052FF',
+      logoUrl: row.logoUrl ?? 'bankos',
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });

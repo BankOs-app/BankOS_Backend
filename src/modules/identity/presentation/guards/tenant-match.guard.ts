@@ -24,6 +24,18 @@ export class TenantMatchGuard implements CanActivate {
       return true;
     }
 
+    // Administrador General: acceso institucional a todas las entidades del sistema
+    const isGlobalAdmin =
+      user.role === 'admin' &&
+      (user.email?.toLowerCase().includes('bankos') ||
+        user.tenantSlug === 'bankos' ||
+        user.tenantSlug === 'global' ||
+        !user.tenantSlug);
+
+    if (isGlobalAdmin) {
+      return true;
+    }
+
     const paramLower = tenantSlugParam.trim().toLowerCase();
     const matchesSlug =
       user.tenantSlug && user.tenantSlug.toLowerCase() === paramLower;

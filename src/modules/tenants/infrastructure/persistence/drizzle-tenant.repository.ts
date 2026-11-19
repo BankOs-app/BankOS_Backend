@@ -45,6 +45,9 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
         ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00;
         ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED';
         ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000;
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS primary_color VARCHAR(20) NOT NULL DEFAULT '#0A2540';
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS accent_color VARCHAR(20) NOT NULL DEFAULT '#0052FF';
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS logo_url VARCHAR(255) NOT NULL DEFAULT 'bankos';
       `);
       this.logger.log('Tabla central public.tenants verificada con parámetros financieros.');
     } catch {
@@ -65,6 +68,9 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       maxTransactionAmount: tenant.getMaxTransactionAmount(),
       feeType: tenant.getFeeType(),
       feeValue: tenant.getFeeValue(),
+      primaryColor: tenant.getPrimaryColor(),
+      accentColor: tenant.getAccentColor(),
+      logoUrl: tenant.getLogoUrl(),
       createdAt: tenant.getCreatedAt(),
       updatedAt: tenant.getUpdatedAt(),
     });
@@ -86,6 +92,9 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
         maxTransactionAmount: tenant.getMaxTransactionAmount(),
         feeType: tenant.getFeeType(),
         feeValue: tenant.getFeeValue(),
+        primaryColor: tenant.getPrimaryColor(),
+        accentColor: tenant.getAccentColor(),
+        logoUrl: tenant.getLogoUrl(),
         updatedAt: tenant.getUpdatedAt(),
       })
       .where(eq(tenantsTable.id, tenant.getId()));
@@ -118,6 +127,13 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
   }
 
   async findById(id: string): Promise<Tenant | null> {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      );
+    if (!isUuid) {
+      return this.findBySlug(id);
+    }
     const rows = await this.db
       .select()
       .from(tenantsTable)
@@ -153,6 +169,9 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       maxTransactionAmount: row.maxTransactionAmount ?? '50000000.00',
       feeType: (row.feeType as FeeType) ?? FeeType.FIXED,
       feeValue: row.feeValue ?? '0.0000',
+      primaryColor: row.primaryColor ?? '#0A2540',
+      accentColor: row.accentColor ?? '#0052FF',
+      logoUrl: row.logoUrl ?? 'bankos',
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });

@@ -14,6 +14,9 @@ export interface TenantProps {
   maxTransactionAmount: string;
   feeType: FeeType;
   feeValue: string;
+  primaryColor?: string;
+  accentColor?: string;
+  logoUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +38,9 @@ export class Tenant {
   private maxTransactionAmount: string;
   private feeType: FeeType;
   private feeValue: string;
+  private primaryColor: string;
+  private accentColor: string;
+  private logoUrl: string;
   private readonly createdAt: Date;
   private updatedAt: Date;
 
@@ -49,6 +55,9 @@ export class Tenant {
     this.maxTransactionAmount = props.maxTransactionAmount;
     this.feeType = props.feeType;
     this.feeValue = props.feeValue;
+    this.primaryColor = props.primaryColor ?? '#0A2540';
+    this.accentColor = props.accentColor ?? '#0052FF';
+    this.logoUrl = props.logoUrl ?? 'bankos';
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
@@ -64,6 +73,9 @@ export class Tenant {
       maxTransactionAmount?: string;
       feeType?: FeeType;
       feeValue?: string;
+      primaryColor?: string;
+      accentColor?: string;
+      logoUrl?: string;
     },
   ): Tenant {
     const slugVo = new TenantSlug(rawSlug);
@@ -84,6 +96,9 @@ export class Tenant {
       maxTransactionAmount: settings?.maxTransactionAmount ?? '50000000.00',
       feeType: settings?.feeType ?? FeeType.FIXED,
       feeValue: settings?.feeValue ?? '0.0000',
+      primaryColor: settings?.primaryColor ?? '#0A2540',
+      accentColor: settings?.accentColor ?? '#0052FF',
+      logoUrl: settings?.logoUrl ?? 'bankos',
       createdAt: now,
       updatedAt: now,
     });
@@ -102,6 +117,9 @@ export class Tenant {
     maxTransactionAmount?: string;
     feeType?: FeeType;
     feeValue?: string;
+    primaryColor?: string;
+    accentColor?: string;
+    logoUrl?: string;
     createdAt: Date;
     updatedAt: Date;
   }): Tenant {
@@ -115,6 +133,9 @@ export class Tenant {
       maxTransactionAmount: props.maxTransactionAmount ?? '50000000.00',
       feeType: props.feeType ?? FeeType.FIXED,
       feeValue: props.feeValue ?? '0.0000',
+      primaryColor: props.primaryColor ?? '#0A2540',
+      accentColor: props.accentColor ?? '#0052FF',
+      logoUrl: props.logoUrl ?? 'bankos',
       createdAt: props.createdAt,
       updatedAt: props.updatedAt,
     });
@@ -149,6 +170,17 @@ export class Tenant {
     this.maxTransactionAmount = maxTransactionAmount;
     this.feeType = feeType;
     this.feeValue = feeValue;
+    this.updatedAt = new Date();
+  }
+
+  public updateBranding(
+    primaryColor?: string,
+    accentColor?: string,
+    logoUrl?: string,
+  ): void {
+    if (primaryColor) this.primaryColor = primaryColor;
+    if (accentColor) this.accentColor = accentColor;
+    if (logoUrl) this.logoUrl = logoUrl;
     this.updatedAt = new Date();
   }
 
@@ -201,6 +233,18 @@ export class Tenant {
 
   public getFeeValue(): string {
     return this.feeValue;
+  }
+
+  public getPrimaryColor(): string {
+    return this.primaryColor;
+  }
+
+  public getAccentColor(): string {
+    return this.accentColor;
+  }
+
+  public getLogoUrl(): string {
+    return this.logoUrl;
   }
 
   public getCreatedAt(): Date {

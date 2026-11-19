@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 import { Currency } from '../../domain/value-objects/currency.enum';
 import { FeeType } from '../../domain/value-objects/fee-type.enum';
 
@@ -53,5 +53,32 @@ export class UpdateTenantSettingsRequestDto {
       'El valor de la comisión debe ser un número decimal válido con hasta 4 decimales',
   })
   feeValue: string;
+
+  @ApiProperty({
+    description: 'Color primario institucional en formato Hex (ej. #FDDA24)',
+    example: '#FDDA24',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  primaryColor?: string;
+
+  @ApiProperty({
+    description: 'Color de acento institucional en formato Hex (ej. #000000)',
+    example: '#000000',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  accentColor?: string;
+
+  @ApiProperty({
+    description: 'Clave o URL del logotipo del banco (ej. bancolombia)',
+    example: 'bancolombia',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  logoUrl?: string;
 }
 

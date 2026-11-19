@@ -79,6 +79,9 @@ export class TenantSettingsController {
       maxTransactionAmount: dto.maxTransactionAmount,
       feeType: dto.feeType,
       feeValue: dto.feeValue,
+      primaryColor: dto.primaryColor,
+      accentColor: dto.accentColor,
+      logoUrl: dto.logoUrl,
     });
   }
 

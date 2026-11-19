@@ -73,18 +73,21 @@ export async function runSeed(existingPool?: Pool) {
     const tenantNuId = '47130a5f-3368-4a0b-ab77-0982b6a07a96';
 
     await pool.query(`
-      INSERT INTO public.tenants (id, name, slug, status, schema_name, primary_currency, max_transaction_amount, fee_type, fee_value)
+      INSERT INTO public.tenants (id, name, slug, status, schema_name, primary_currency, max_transaction_amount, fee_type, fee_value, primary_color, accent_color, logo_url)
       VALUES 
-        ('${tenantBogotaId}', 'Banco de Bogotá', 'banco-bogota', 'ACTIVE', 'tenant_banco_bogota', 'COP', 50000000.00, 'FIXED', 2500.0000),
-        ('${tenantSantanderId}', 'Banco Santander', 'banco-santander', 'ACTIVE', 'tenant_banco_santander', 'USD', 10000.00, 'PERCENTAGE', 1.5000),
-        ('${tenantLombiaId}', 'Bancolombia', 'banco-lombia', 'ACTIVE', 'tenant_banco_lombia', 'COP', 50000000.00, 'FIXED', 2500.0000),
-        ('${tenantNuId}', 'Banco de NU', 'banco-nu', 'ACTIVE', 'tenant_banco_nu', 'COP', 20000000.00, 'FIXED', 0.0000)
+        ('${tenantBogotaId}', 'Banco de Bogotá', 'banco-bogota', 'ACTIVE', 'tenant_banco_bogota', 'COP', 50000000.00, 'FIXED', 2500.0000, '#002D72', '#004BB1', 'banco-bogota'),
+        ('${tenantSantanderId}', 'Banco Santander', 'banco-santander', 'ACTIVE', 'tenant_banco_santander', 'USD', 10000.00, 'PERCENTAGE', 1.5000, '#EC0000', '#CC0000', 'banco-santander'),
+        ('${tenantLombiaId}', 'Bancolombia', 'banco-lombia', 'ACTIVE', 'tenant_banco_lombia', 'COP', 50000000.00, 'FIXED', 2500.0000, '#000000', '#FDDA24', 'bancolombia'),
+        ('${tenantNuId}', 'Banco de NU', 'banco-nu', 'ACTIVE', 'tenant_banco_nu', 'COP', 20000000.00, 'FIXED', 0.0000, '#820AD1', '#9B3FE6', 'banco-nu')
       ON CONFLICT (slug) DO UPDATE SET 
         status = 'ACTIVE',
         primary_currency = EXCLUDED.primary_currency,
         max_transaction_amount = EXCLUDED.max_transaction_amount,
         fee_type = EXCLUDED.fee_type,
-        fee_value = EXCLUDED.fee_value;
+        fee_value = EXCLUDED.fee_value,
+        primary_color = EXCLUDED.primary_color,
+        accent_color = EXCLUDED.accent_color,
+        logo_url = EXCLUDED.logo_url;
     `);
 
     // Función auxiliar para aprovisionar las 11 tablas en un esquema
@@ -157,6 +160,9 @@ export async function runSeed(existingPool?: Pool) {
           max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 10000000.00,
           fee_type VARCHAR(10) NOT NULL DEFAULT 'FIXED',
           fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.00,
+          primary_color VARCHAR(20) NOT NULL DEFAULT '#0A2540',
+          accent_color VARCHAR(20) NOT NULL DEFAULT '#0052FF',
+          logo_url VARCHAR(255) NOT NULL DEFAULT 'bankos',
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
@@ -233,8 +239,8 @@ export async function runSeed(existingPool?: Pool) {
     const userMariaId = '66666666-6666-4666-8666-666666666666';
 
     await pool.query(`
-      INSERT INTO "tenant_banco_bogota".tenant_settings (id, primary_currency, max_transaction_amount, fee_type, fee_value)
-      VALUES (gen_random_uuid(), 'COP', '50000000.00', 'FIXED', '2500.00')
+      INSERT INTO "tenant_banco_bogota".tenant_settings (id, primary_currency, max_transaction_amount, fee_type, fee_value, primary_color, accent_color, logo_url)
+      VALUES (gen_random_uuid(), 'COP', '50000000.00', 'FIXED', '2500.00', '#002D72', '#004BB1', 'banco-bogota')
       ON CONFLICT DO NOTHING;
 
       INSERT INTO "tenant_banco_bogota".tenant_exchange_rates (id, from_currency, to_currency, rate)
@@ -270,8 +276,8 @@ export async function runSeed(existingPool?: Pool) {
     const userJohnId = '77777777-7777-4777-8777-777777777777';
 
     await pool.query(`
-      INSERT INTO "tenant_banco_santander".tenant_settings (id, primary_currency, max_transaction_amount, fee_type, fee_value)
-      VALUES (gen_random_uuid(), 'USD', '10000.00', 'PERCENTAGE', '1.50')
+      INSERT INTO "tenant_banco_santander".tenant_settings (id, primary_currency, max_transaction_amount, fee_type, fee_value, primary_color, accent_color, logo_url)
+      VALUES (gen_random_uuid(), 'USD', '10000.00', 'PERCENTAGE', '1.50', '#EC0000', '#CC0000', 'banco-santander')
       ON CONFLICT DO NOTHING;
 
       INSERT INTO "tenant_banco_santander".tenant_exchange_rates (id, from_currency, to_currency, rate)
@@ -300,11 +306,12 @@ export async function runSeed(existingPool?: Pool) {
     // 6. Sembrar Bancolombia
     console.log('[Seed] 6. Sembrando datos en tenant_banco_lombia...');
     const adminLombiaId = '55551111-5555-4555-8555-555511111111';
+    const adminBankosId = '55553333-5555-4555-8555-555533333333';
     const userLombiaId = '55552222-5555-4555-8555-555522222222';
 
     await pool.query(`
-      INSERT INTO "tenant_banco_lombia".tenant_settings (id, primary_currency, max_transaction_amount, fee_type, fee_value)
-      VALUES (gen_random_uuid(), 'COP', '50000000.00', 'FIXED', '2500.00')
+      INSERT INTO "tenant_banco_lombia".tenant_settings (id, primary_currency, max_transaction_amount, fee_type, fee_value, primary_color, accent_color, logo_url)
+      VALUES (gen_random_uuid(), 'COP', '50000000.00', 'FIXED', '2500.00', '#000000', '#FDDA24', 'bancolombia')
       ON CONFLICT DO NOTHING;
 
       INSERT INTO "tenant_banco_lombia".tenant_exchange_rates (id, from_currency, to_currency, rate)
@@ -316,6 +323,7 @@ export async function runSeed(existingPool?: Pool) {
       INSERT INTO "tenant_banco_lombia".users (id, email, role, status, password_hash)
       VALUES 
         ('${adminLombiaId}', 'admin@bancolombia.com', 'admin', 'ACTIVE', '${defaultPasswordHash}'),
+        ('${adminBankosId}', 'admin@bankos.com', 'admin', 'ACTIVE', '${defaultPasswordHash}'),
         ('${userLombiaId}', 'cliente@bancolombia.com', 'customer', 'ACTIVE', '${defaultPasswordHash}')
       ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
@@ -336,8 +344,8 @@ export async function runSeed(existingPool?: Pool) {
     const userNuId = '66662222-6666-4666-8666-666622222222';
 
     await pool.query(`
-      INSERT INTO "tenant_banco_nu".tenant_settings (id, primary_currency, max_transaction_amount, fee_type, fee_value)
-      VALUES (gen_random_uuid(), 'COP', '20000000.00', 'FIXED', '0.00')
+      INSERT INTO "tenant_banco_nu".tenant_settings (id, primary_currency, max_transaction_amount, fee_type, fee_value, primary_color, accent_color, logo_url)
+      VALUES (gen_random_uuid(), 'COP', '20000000.00', 'FIXED', '0.00', '#820AD1', '#9B3FE6', 'banco-nu')
       ON CONFLICT DO NOTHING;
 
       INSERT INTO "tenant_banco_nu".users (id, email, role, status, password_hash)
@@ -358,7 +366,7 @@ export async function runSeed(existingPool?: Pool) {
     `);
 
     console.log('\n======================================================');
-    console.log('✅ SEED SCHEMA-PER-TENANT COMPLETADO EXITOSAMENTE');
+    console.log('[Seed] Aprovisionamiento Schema-per-Tenant completado exitosamente.');
     console.log('======================================================');
     console.log('Instituciones configuradas en public.tenants con parámetros financieros:');
     console.log('  1. Banco de Bogotá   (banco-bogota)   -> Moneda: COP, Límite: $50M, Comisión: $2,500 COP');
@@ -370,10 +378,10 @@ export async function runSeed(existingPool?: Pool) {
     console.log('  - tenant_banco_santander');
     console.log('  - tenant_banco_lombia');
     console.log('  - tenant_banco_nu');
-    console.log('PIN universal de prueba: 1234');
+    console.log('PIN universal de acceso: 1234');
     console.log('======================================================\n');
   } catch (error) {
-    console.error('❌ Error durante la ejecución del seed:', error);
+    console.error('[Seed] Error durante la ejecución del seed:', error);
   } finally {
     if (shouldClose) {
       await pool.end();
