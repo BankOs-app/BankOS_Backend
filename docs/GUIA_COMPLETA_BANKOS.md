@@ -324,3 +324,62 @@ http://localhost:3000/api/docs
 ### P4: ¿Por qué la tabla de auditoría tiene reglas en PostgreSQL y no solo validaciones en NestJS?
 > **Respuesta:** Principio de **Defensa en Profundidad**. Si un atacante o un desarrollador malintencionado obtiene acceso directo a la consola de base de datos (`psql`) con permisos de superusuario e intenta hacer `DELETE FROM audit_logs`, la regla nativa `audit_logs_no_delete` intercepta la orden a nivel del motor y no realiza ninguna acción (`DO INSTEAD NOTHING`), preservando la inmutabilidad de la bitácora legal.
 
+---
+
+## 10. Integración con Apps Móviles (Flutter): Onboarding, PIN y Biometría
+
+Para soportar clientes bancarios que utilicen la aplicación móvil en **Flutter**, el backend provee soporte nativo de registro con PIN/contraseña, autenticación segura y vinculación con biometría (Face ID / Touch ID):
+
+### Flujo 1: Registro / Onboarding Público desde Flutter
+- **Endpoint:** `POST /api/v1/tenants/:slug/customers/register` (Público, sin token requerido).
+- **Cuerpo (JSON):**
+  ```json
+  {
+    "fullName": "Carlos Gómez",
+    "documentNumber": "1020304050",
+    "email": "carlos@bogota.com",
+    "phone": "+573001234567",
+    "pin": "1234"
+  }
+  ```
+- **Seguridad en Backend:** El PIN se hashea mediante `PasswordHasher` usando `node:crypto.scryptSync` con salt criptográfico de 16 bytes. El PIN en texto plano nunca se guarda en base de datos.
+
+### Flujo 2: Inicio de Sesión Oficial en Flutter (Requerimiento Línea 72)
+Según los requerimientos oficiales del reto (*"Ingreso por Tenant: El inicio de sesión debe requerir las credenciales del usuario y el identificador/slug del tenant al que pertenece"*), un usuario puede tener cuentas en diferentes instituciones (ej. Banco de Bogotá y Banco Santander), por lo que en el Login selecciona su banco:
+- **Endpoint:** `POST /api/v1/identity/login` (Público con Rate Limit de 10 peticiones/minuto por IP).
+- **Cuerpo (JSON):**
+  ```json
+  {
+    "tenantSlug": "banco-bogota",
+    "email": "carlos@bogota.com",
+    "password": "1234"
+  }
+  ```
+- **Respuesta (JSON):**
+  ```json
+  {
+    "access_token": "eyJhbGciOi...",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "user": {
+      "userId": "55555555-5555-4555-8555-555555555555",
+      "tenantId": "11111111-1111-4111-8111-111111111111",
+      "tenantSlug": "banco-bogota",
+      "tenantName": "Banco de Bogotá",
+      "email": "carlos@bogota.com",
+      "role": "customer"
+    }
+  }
+  ```
+
+### Flujo 3: Consulta Directa de Cuentas y Perfil desde Flutter
+Con el token obtenido, la app de Flutter no necesita armar rutas complejas con slugs:
+- **Cuentas bancarias:** `GET /api/v1/accounts/me` (o `GET /api/v1/tenants/:slug/accounts/me`)
+- **Ficha del cliente:** `GET /api/v1/customers/me` (o `GET /api/v1/tenants/:slug/customers/me`)
+
+### Flujo 4: Face ID / Huella Dactilar en Flutter
+1. Al iniciar sesión por primera vez con el PIN, Flutter almacena el JWT o un token de refresco en el llavero seguro del sistema operativo (`flutter_secure_storage` -> iOS Keychain / Android Keystore).
+2. Cuando el usuario abre la app en ocasiones posteriores, Flutter ejecuta `local_auth.authenticate()` solicitando biometría local en el dispositivo.
+3. Si el sensor biométrico aprueba la identidad, Flutter recupera el token del llavero seguro y realiza las peticiones a la API directamente (ej. `GET /api/v1/tenants/:slug/accounts/me`).
+
+

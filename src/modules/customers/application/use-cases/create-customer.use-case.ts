@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -12,6 +13,7 @@ import { CUSTOMER_REPOSITORY } from '../ports/customer.repository.port';
 import type { CustomerRepository } from '../ports/customer.repository.port';
 import { User } from '../../../identity/domain/entities/user.entity';
 import { UserRole } from '../../../identity/domain/value-objects/user-role.enum';
+import { PasswordHasher } from '../../../identity/infrastructure/security/password-hasher';
 import { Customer } from '../../domain/entities/customer.entity';
 import { CustomerResponseDto } from '../dto/customer-response.dto';
 
@@ -21,6 +23,8 @@ export interface CreateCustomerInput {
   documentNumber: string;
   email: string;
   phone?: string;
+  pin?: string;
+  password?: string;
 }
 
 /**
@@ -56,7 +60,7 @@ export class CreateCustomerUseCase {
 
     const tenantId = tenant.getId();
 
-    // 1. Validar que no exista otro cliente con el mismo documento en este tenant
+    // 1. Validar que no exista otro cliente con el mismo documento en este tenant (Aislamiento Estricto)
     const existingDoc = await this.customerRepository.findByDocumentNumber(
       tenantId,
       input.documentNumber.trim(),
@@ -78,11 +82,18 @@ export class CreateCustomerUseCase {
       );
     }
 
-    // 3. Crear entidad User
+    // 3. Crear entidad User con su PIN seguro de exactamente 4 dígitos
+    const rawPin = input.pin || input.password || '1234';
+    if (!/^\d{4}$/.test(rawPin)) {
+      throw new BadRequestException(
+        'El PIN de seguridad debe contener exactamente 4 dígitos numéricos.',
+      );
+    }
     const user = User.create({
       tenantId,
       email: input.email,
       role: UserRole.CUSTOMER,
+      passwordHash: PasswordHasher.hash(rawPin),
     });
 
     // 4. Crear entidad Customer vinculada

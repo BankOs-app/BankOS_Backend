@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -22,6 +23,7 @@ import { RolesGuard } from '../../../identity/presentation/guards/roles.guard';
 import { TenantMatchGuard } from '../../../identity/presentation/guards/tenant-match.guard';
 import { Roles } from '../../../identity/presentation/decorators/roles.decorator';
 import { CurrentUser } from '../../../identity/presentation/decorators/current-user.decorator';
+import { Public } from '../../../identity/presentation/decorators/public.decorator';
 import { UserRole } from '../../../identity/domain/value-objects/user-role.enum';
 import { AuthenticatedUser } from '../../../identity/domain/value-objects/authenticated-user.vo';
 import { CreateCustomerUseCase } from '../../application/use-cases/create-customer.use-case';
@@ -32,7 +34,7 @@ import { CustomerResponseDto } from '../../application/dto/customer-response.dto
 @ApiTags('Customers & Users (HU-04)')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard, TenantMatchGuard)
-@Controller('tenants/:slug/customers')
+@Controller(['tenants/:slug/customers', 'customers'])
 export class CustomersController {
   constructor(
     private readonly createCustomerUseCase: CreateCustomerUseCase,
@@ -62,6 +64,41 @@ export class CustomersController {
       documentNumber: dto.documentNumber,
       email: dto.email,
       phone: dto.phone,
+      pin: dto.pin,
+      password: dto.password,
+    });
+  }
+
+  @Public()
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Auto-registro / Onboarding de cliente bancario desde la App Móvil Flutter',
+    description:
+      'Permite que un nuevo cliente se registre directamente en la institución bancaria indicando sus datos personales y su PIN o contraseña.',
+  })
+  @ApiOkResponse({ type: CustomerResponseDto })
+  @ApiConflictResponse({
+    description: 'Documento o email ya registrado en el tenant o en otra institución.',
+  })
+  async register(
+    @Body() dto: CreateCustomerRequestDto,
+    @Param('slug') slug?: string,
+  ): Promise<CustomerResponseDto> {
+    const targetSlug = slug || dto.tenantSlug;
+    if (!targetSlug || targetSlug.trim() === '') {
+      throw new BadRequestException(
+        'Debes indicar la institución bancaria (tenantSlug) donde deseas registrar tu cuenta.',
+      );
+    }
+    return this.createCustomerUseCase.execute({
+      tenantSlug: targetSlug,
+      fullName: dto.fullName,
+      documentNumber: dto.documentNumber,
+      email: dto.email,
+      phone: dto.phone,
+      pin: dto.pin,
+      password: dto.password,
     });
   }
 
@@ -83,7 +120,7 @@ export class CustomersController {
   async getMyProfile(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CustomerResponseDto> {
-    return this.getCustomerUseCase.findByUserId(user.userId);
+    return this.getCustomerUseCase.findByUserId(user.userId, user.tenantId);
   }
 
   @Get(':id')

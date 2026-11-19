@@ -39,7 +39,10 @@ export class GetCustomerUseCase {
       throw new NotFoundException(`No existe el tenant '${tenantSlug}'`);
     }
 
-    const customer = await this.customerRepository.findById(customerId);
+    const customer = await this.customerRepository.findById(
+      customerId,
+      tenant.getId(),
+    );
     // Criterio CA-HU-04-04: Si el cliente no existe o pertenece a otro tenant, no se revela
     if (!customer || customer.getTenantId() !== tenant.getId()) {
       throw new NotFoundException(
@@ -50,8 +53,14 @@ export class GetCustomerUseCase {
     return CustomerResponseDto.fromDomain(customer);
   }
 
-  async findByUserId(userId: string): Promise<CustomerResponseDto> {
-    const customer = await this.customerRepository.findByUserId(userId);
+  async findByUserId(
+    userId: string,
+    tenantId?: string,
+  ): Promise<CustomerResponseDto> {
+    const customer = await this.customerRepository.findByUserId(
+      userId,
+      tenantId,
+    );
     if (!customer) {
       throw new NotFoundException('Ficha de cliente no encontrada.');
     }

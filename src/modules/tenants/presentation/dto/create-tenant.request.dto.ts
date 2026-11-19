@@ -1,16 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsEnum,
   IsNotEmpty,
+  IsNumberString,
   IsString,
   Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { Currency } from '../../domain/value-objects/currency.enum';
+import { FeeType } from '../../domain/value-objects/fee-type.enum';
 
 /**
- * DTO para la petición HTTP de creación de un Tenant.
- *
- * Incluye validaciones mediante class-validator y metadatos de Swagger.
+ * DTO para la petición HTTP de creación de un Tenant con configuración financiera completa (HU-01 / HU-02).
  */
 export class CreateTenantRequestDto {
   @ApiProperty({
@@ -27,7 +29,7 @@ export class CreateTenantRequestDto {
 
   @ApiProperty({
     description:
-      'Identificador único (slug) para el tenant, usado en URLs y nombres de esquema',
+      'Identificador único (slug) para el tenant, usado en URLs y nombres de esquema físico',
     example: 'banco-bogota',
     minLength: 3,
     maxLength: 50,
@@ -41,5 +43,38 @@ export class CreateTenantRequestDto {
       'El slug solo permite caracteres alfanuméricos en minúscula separados por guiones simples',
   })
   slug: string;
-}
 
+  @ApiProperty({
+    description: 'Moneda principal de operación del banco (COP, USD, EUR)',
+    enum: Currency,
+    example: Currency.COP,
+  })
+  @IsNotEmpty({ message: 'La moneda principal es obligatoria (COP, USD o EUR)' })
+  @IsEnum(Currency, { message: 'La moneda principal debe ser COP, USD o EUR' })
+  primaryCurrency: Currency;
+
+  @ApiProperty({
+    description: 'Límite máximo permitido por transacción en la moneda principal',
+    example: '50000000.00',
+  })
+  @IsNotEmpty({ message: 'El límite máximo por transacción es obligatorio' })
+  @IsNumberString({}, { message: 'El monto máximo debe ser un valor numérico decimal' })
+  maxTransactionAmount: string;
+
+  @ApiProperty({
+    description: 'Tipo de comisión en transferencias salientes: FIXED (fija) o PERCENTAGE (porcentual)',
+    enum: FeeType,
+    example: FeeType.FIXED,
+  })
+  @IsNotEmpty({ message: 'El tipo de comisión es obligatorio (FIXED o PERCENTAGE)' })
+  @IsEnum(FeeType, { message: 'El tipo de comisión debe ser FIXED o PERCENTAGE' })
+  feeType: FeeType;
+
+  @ApiProperty({
+    description: 'Valor de la comisión aplicada (ej. 2500.00 para FIXED o 1.50 para PERCENTAGE)',
+    example: '2500.00',
+  })
+  @IsNotEmpty({ message: 'El valor de la comisión es obligatorio' })
+  @IsNumberString({}, { message: 'El valor de la comisión debe ser numérico decimal' })
+  feeValue: string;
+}

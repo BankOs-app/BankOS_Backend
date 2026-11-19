@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { UserRole } from '../value-objects/user-role.enum';
 import { UserStatus } from '../value-objects/user-status.enum';
+import { PasswordHasher } from '../../infrastructure/security/password-hasher';
 
 export interface UserProps {
   id: string;
@@ -8,6 +9,7 @@ export interface UserProps {
   email: string;
   role: UserRole;
   status: UserStatus;
+  passwordHash?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,6 +23,7 @@ export class User {
   private readonly email: string;
   private role: UserRole;
   private status: UserStatus;
+  private passwordHash?: string;
   private readonly createdAt: Date;
   private updatedAt: Date;
 
@@ -31,6 +34,7 @@ export class User {
     this.email = props.email.trim().toLowerCase();
     this.role = props.role;
     this.status = props.status;
+    this.passwordHash = props.passwordHash;
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
@@ -39,6 +43,7 @@ export class User {
     tenantId: string;
     email: string;
     role: UserRole;
+    passwordHash?: string;
   }): User {
     const now = new Date();
     return new User({
@@ -47,6 +52,7 @@ export class User {
       email: params.email,
       role: params.role,
       status: UserStatus.ACTIVE,
+      passwordHash: params.passwordHash,
       createdAt: now,
       updatedAt: now,
     });
@@ -54,6 +60,25 @@ export class User {
 
   public static reconstitute(props: UserProps): User {
     return new User(props);
+  }
+
+  /**
+   * Valida si el PIN o contraseña en texto plano coincide con el hash almacenado.
+   */
+  public verifyPassword(plainPassword?: string): boolean {
+    if (!this.passwordHash) {
+      // Si el usuario no tiene contraseña registrada (usuario antiguo/demo sin PIN), permite acceso para no romper compatibilidad
+      return true;
+    }
+    if (!plainPassword) {
+      return false;
+    }
+    return PasswordHasher.verify(plainPassword, this.passwordHash);
+  }
+
+  public setPassword(plainPassword: string): void {
+    this.passwordHash = PasswordHasher.hash(plainPassword);
+    this.updatedAt = new Date();
   }
 
   public block(): void {
@@ -103,6 +128,10 @@ export class User {
     return this.status;
   }
 
+  public getPasswordHash(): string | undefined {
+    return this.passwordHash;
+  }
+
   public getCreatedAt(): Date {
     return this.createdAt;
   }
@@ -111,4 +140,5 @@ export class User {
     return this.updatedAt;
   }
 }
+
 

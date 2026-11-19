@@ -1,50 +1,27 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import { Pool } from 'pg';
-import { DRIZZLE, PG_POOL } from '../../../../database/database.module';
+import { DRIZZLE } from '../../../../database/database.module';
 import type { DrizzleDb } from '../../../../database/database.module';
-import {
-  ledgerEntriesTable,
-  LedgerEntryRecord,
-} from '../../../../database/schema/transactions-ledger.schema';
+import { getTenantTables } from '../../../../database/schema/tenant-tables.factory';
+import { TenantSchemaResolver } from '../../../../database/tenant-schema-resolver.service';
 import { LedgerEntry } from '../../domain/entities/ledger-entry.entity';
 import { LedgerEntryType } from '../../../transactions/domain/value-objects/transaction-types.enum';
 import { Currency } from '../../../tenants/domain/value-objects/currency.enum';
 import type { LedgerRepository } from '../../application/ports/ledger.repository.port';
 
 @Injectable()
-export class DrizzleLedgerRepository implements LedgerRepository, OnModuleInit {
-  private readonly logger = new Logger(DrizzleLedgerRepository.name);
-
+export class DrizzleLedgerRepository implements LedgerRepository {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
-    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly schemaResolver: TenantSchemaResolver,
   ) {}
 
-  async onModuleInit(): Promise<void> {
-    try {
-      await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS public.ledger_entries (
-          id UUID PRIMARY KEY,
-          tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-          transaction_id UUID NOT NULL REFERENCES public.transactions(id) ON DELETE CASCADE,
-          account_id UUID NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
-          type VARCHAR(20) NOT NULL,
-          amount NUMERIC(18, 2) NOT NULL,
-          currency VARCHAR(3) NOT NULL,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        );
-      `);
-      this.logger.log('Tabla public.ledger_entries verificada o inicializada.');
-    } catch {
-      this.logger.warn('No se pudo verificar la tabla public.ledger_entries en el arranque.');
-    }
-  }
-
   async save(entry: LedgerEntry): Promise<void> {
-    await this.db.insert(ledgerEntriesTable).values({
+    const info = await this.schemaResolver.resolve(entry.getTenantId());
+    const tables = getTenantTables(info.schemaName);
+
+    await this.db.insert(tables.ledgerEntriesTable).values({
       id: entry.getId(),
-      tenantId: entry.getTenantId(),
       transactionId: entry.getTransactionId(),
       accountId: entry.getAccountId(),
       type: entry.getType(),
@@ -54,28 +31,70 @@ export class DrizzleLedgerRepository implements LedgerRepository, OnModuleInit {
     });
   }
 
-  async listByTransaction(transactionId: string): Promise<LedgerEntry[]> {
-    const rows = await this.db
-      .select()
-      .from(ledgerEntriesTable)
-      .where(eq(ledgerEntriesTable.transactionId, transactionId));
+  async listByTransaction(
+    transactionId: string,
+    tenantId?: string,
+  ): Promise<LedgerEntry[]> {
+    if (tenantId) {
+      const info = await this.schemaResolver.resolve(tenantId);
+      const tables = getTenantTables(info.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.ledgerEntriesTable)
+        .where(eq(tables.ledgerEntriesTable.transactionId, transactionId));
 
-    return rows.map((r) => this.mapToDomain(r));
+      return rows.map((r) => this.mapToDomain(r, info.tenantId));
+    }
+
+    const schemas = await this.schemaResolver.getAllActiveSchemas();
+    for (const schema of schemas) {
+      const tables = getTenantTables(schema.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.ledgerEntriesTable)
+        .where(eq(tables.ledgerEntriesTable.transactionId, transactionId));
+
+      if (rows.length > 0) {
+        return rows.map((r) => this.mapToDomain(r, schema.tenantId));
+      }
+    }
+    return [];
   }
 
-  async listByAccount(accountId: string): Promise<LedgerEntry[]> {
-    const rows = await this.db
-      .select()
-      .from(ledgerEntriesTable)
-      .where(eq(ledgerEntriesTable.accountId, accountId));
+  async listByAccount(
+    accountId: string,
+    tenantId?: string,
+  ): Promise<LedgerEntry[]> {
+    if (tenantId) {
+      const info = await this.schemaResolver.resolve(tenantId);
+      const tables = getTenantTables(info.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.ledgerEntriesTable)
+        .where(eq(tables.ledgerEntriesTable.accountId, accountId));
 
-    return rows.map((r) => this.mapToDomain(r));
+      return rows.map((r) => this.mapToDomain(r, info.tenantId));
+    }
+
+    const schemas = await this.schemaResolver.getAllActiveSchemas();
+    for (const schema of schemas) {
+      const tables = getTenantTables(schema.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.ledgerEntriesTable)
+        .where(eq(tables.ledgerEntriesTable.accountId, accountId));
+
+      if (rows.length > 0) {
+        return rows.map((r) => this.mapToDomain(r, schema.tenantId));
+      }
+    }
+    return [];
   }
 
-  private mapToDomain(row: LedgerEntryRecord): LedgerEntry {
+  private mapToDomain(row: any, tenantId: string): LedgerEntry {
     return LedgerEntry.reconstitute({
       id: row.id,
-      tenantId: row.tenantId,
+      tenantId,
       transactionId: row.transactionId,
       accountId: row.accountId,
       type: row.type as LedgerEntryType,
@@ -85,4 +104,3 @@ export class DrizzleLedgerRepository implements LedgerRepository, OnModuleInit {
     });
   }
 }
-

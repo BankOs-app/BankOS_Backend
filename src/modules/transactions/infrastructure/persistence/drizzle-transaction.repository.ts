@@ -1,12 +1,9 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { and, count, desc, eq, gte, inArray, lte, or } from 'drizzle-orm';
-import { Pool } from 'pg';
-import { DRIZZLE, PG_POOL } from '../../../../database/database.module';
+import { DRIZZLE } from '../../../../database/database.module';
 import type { DrizzleDb } from '../../../../database/database.module';
-import {
-  transactionsTable,
-  TransactionRecord,
-} from '../../../../database/schema/transactions-ledger.schema';
+import { getTenantTables } from '../../../../database/schema/tenant-tables.factory';
+import { TenantSchemaResolver } from '../../../../database/tenant-schema-resolver.service';
 import { Transaction } from '../../domain/entities/transaction.entity';
 import {
   TransactionType,
@@ -20,46 +17,18 @@ import type {
 } from '../../application/ports/transaction.repository.port';
 
 @Injectable()
-export class DrizzleTransactionRepository
-  implements TransactionRepository, OnModuleInit
-{
-  private readonly logger = new Logger(DrizzleTransactionRepository.name);
-
+export class DrizzleTransactionRepository implements TransactionRepository {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
-    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly schemaResolver: TenantSchemaResolver,
   ) {}
 
-  async onModuleInit(): Promise<void> {
-    try {
-      await this.pool.query(`
-        CREATE TABLE IF NOT EXISTS public.transactions (
-          id UUID PRIMARY KEY,
-          tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-          type VARCHAR(20) NOT NULL,
-          source_account_id UUID REFERENCES public.accounts(id) ON DELETE SET NULL,
-          destination_account_id UUID REFERENCES public.accounts(id) ON DELETE CASCADE,
-          original_amount NUMERIC(18, 2) NOT NULL,
-          original_currency VARCHAR(3) NOT NULL,
-          converted_amount NUMERIC(18, 2),
-          destination_currency VARCHAR(3),
-          exchange_rate_applied NUMERIC(18, 6),
-          fee_amount NUMERIC(18, 4),
-          status VARCHAR(20) NOT NULL DEFAULT 'SUCCESS',
-          idempotency_key VARCHAR(100) NOT NULL,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        );
-      `);
-      this.logger.log('Tabla public.transactions verificada o inicializada.');
-    } catch {
-      this.logger.warn('No se pudo verificar la tabla public.transactions en el arranque.');
-    }
-  }
-
   async save(transaction: Transaction): Promise<void> {
-    await this.db.insert(transactionsTable).values({
+    const info = await this.schemaResolver.resolve(transaction.getTenantId());
+    const tables = getTenantTables(info.schemaName);
+
+    await this.db.insert(tables.transactionsTable).values({
       id: transaction.getId(),
-      tenantId: transaction.getTenantId(),
       type: transaction.getType(),
       sourceAccountId: transaction.getSourceAccountId() ?? null,
       destinationAccountId: transaction.getDestinationAccountId() ?? null,
@@ -75,96 +44,147 @@ export class DrizzleTransactionRepository
     });
   }
 
-  async findById(id: string): Promise<Transaction | null> {
-    const rows = await this.db
-      .select()
-      .from(transactionsTable)
-      .where(eq(transactionsTable.id, id))
-      .limit(1);
+  async findById(id: string, tenantId?: string): Promise<Transaction | null> {
+    if (tenantId) {
+      const info = await this.schemaResolver.resolve(tenantId);
+      const tables = getTenantTables(info.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.transactionsTable)
+        .where(eq(tables.transactionsTable.id, id))
+        .limit(1);
 
-    if (rows.length === 0) return null;
-    return this.mapToDomain(rows[0]);
+      if (rows.length === 0) return null;
+      return this.mapToDomain(rows[0], info.tenantId);
+    }
+
+    const schemas = await this.schemaResolver.getAllActiveSchemas();
+    for (const schema of schemas) {
+      const tables = getTenantTables(schema.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.transactionsTable)
+        .where(eq(tables.transactionsTable.id, id))
+        .limit(1);
+
+      if (rows.length > 0) {
+        return this.mapToDomain(rows[0], schema.tenantId);
+      }
+    }
+    return null;
   }
 
   async findByTenant(tenantId: string): Promise<Transaction[]> {
-    const rows = await this.db
-      .select()
-      .from(transactionsTable)
-      .where(eq(transactionsTable.tenantId, tenantId));
+    const info = await this.schemaResolver.resolve(tenantId);
+    const tables = getTenantTables(info.schemaName);
 
-    return rows.map((r) => this.mapToDomain(r));
+    const rows = await this.db.select().from(tables.transactionsTable);
+    return rows.map((r) => this.mapToDomain(r, info.tenantId));
   }
 
-  async findByAccount(accountId: string): Promise<Transaction[]> {
-    const rows = await this.db
-      .select()
-      .from(transactionsTable)
-      .where(
-        or(
-          eq(transactionsTable.sourceAccountId, accountId),
-          eq(transactionsTable.destinationAccountId, accountId),
-        ),
-      );
+  async findByAccount(accountId: string, tenantId?: string): Promise<Transaction[]> {
+    if (tenantId) {
+      const info = await this.schemaResolver.resolve(tenantId);
+      const tables = getTenantTables(info.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.transactionsTable)
+        .where(
+          or(
+            eq(tables.transactionsTable.sourceAccountId, accountId),
+            eq(tables.transactionsTable.destinationAccountId, accountId),
+          ),
+        );
 
-    return rows.map((r) => this.mapToDomain(r));
+      return rows.map((r) => this.mapToDomain(r, info.tenantId));
+    }
+
+    const schemas = await this.schemaResolver.getAllActiveSchemas();
+    for (const schema of schemas) {
+      const tables = getTenantTables(schema.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.transactionsTable)
+        .where(
+          or(
+            eq(tables.transactionsTable.sourceAccountId, accountId),
+            eq(tables.transactionsTable.destinationAccountId, accountId),
+          ),
+        );
+
+      if (rows.length > 0) {
+        return rows.map((r) => this.mapToDomain(r, schema.tenantId));
+      }
+    }
+    return [];
   }
 
   async findPaginated(
     filter: TransactionQueryFilter,
   ): Promise<PaginatedResult<Transaction>> {
-    const conditions = [eq(transactionsTable.tenantId, filter.tenantId)];
+    const info = await this.schemaResolver.resolve(filter.tenantId);
+    const tables = getTenantTables(info.schemaName);
+
+    const conditions: any[] = [];
 
     if (filter.accountIds && filter.accountIds.length > 0) {
       conditions.push(
         or(
-          inArray(transactionsTable.sourceAccountId, filter.accountIds),
-          inArray(transactionsTable.destinationAccountId, filter.accountIds),
+          inArray(tables.transactionsTable.sourceAccountId, filter.accountIds),
+          inArray(tables.transactionsTable.destinationAccountId, filter.accountIds),
         )!,
       );
     }
 
     if (filter.type) {
-      conditions.push(eq(transactionsTable.type, filter.type));
+      conditions.push(eq(tables.transactionsTable.type, filter.type));
     }
 
     if (filter.startDate) {
-      conditions.push(gte(transactionsTable.createdAt, filter.startDate));
+      conditions.push(gte(tables.transactionsTable.createdAt, filter.startDate));
     }
 
     if (filter.endDate) {
-      conditions.push(lte(transactionsTable.createdAt, filter.endDate));
+      conditions.push(lte(tables.transactionsTable.createdAt, filter.endDate));
     }
 
-    const whereClause = and(...conditions);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const countResult = await this.db
+    const countQuery = this.db
       .select({ count: count() })
-      .from(transactionsTable)
-      .where(whereClause);
+      .from(tables.transactionsTable);
+    const countResult = whereClause
+      ? await countQuery.where(whereClause)
+      : await countQuery;
     const total = Number(countResult[0]?.count ?? 0);
 
     const offset = (filter.page - 1) * filter.limit;
 
-    const rows = await this.db
+    let rowsQuery = this.db
       .select()
-      .from(transactionsTable)
-      .where(whereClause)
-      .orderBy(desc(transactionsTable.createdAt), desc(transactionsTable.id))
+      .from(tables.transactionsTable);
+
+    if (whereClause) {
+      rowsQuery = rowsQuery.where(whereClause) as any;
+    }
+
+    const rows = await rowsQuery
+      .orderBy(desc(tables.transactionsTable.createdAt), desc(tables.transactionsTable.id))
       .limit(filter.limit)
       .offset(offset);
 
     return {
-      data: rows.map((r) => this.mapToDomain(r)),
+      data: rows.map((r) => this.mapToDomain(r, info.tenantId)),
       total,
       page: filter.page,
       limit: filter.limit,
     };
   }
 
-  private mapToDomain(row: TransactionRecord): Transaction {
+  private mapToDomain(row: any, tenantId: string): Transaction {
     return Transaction.reconstitute({
       id: row.id,
-      tenantId: row.tenantId,
+      tenantId,
       type: row.type as TransactionType,
       sourceAccountId: row.sourceAccountId ?? undefined,
       destinationAccountId: row.destinationAccountId ?? undefined,

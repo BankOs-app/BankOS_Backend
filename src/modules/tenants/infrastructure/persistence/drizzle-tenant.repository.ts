@@ -4,15 +4,16 @@ import { Pool } from 'pg';
 import { DRIZZLE, PG_POOL } from '../../../../database/database.module';
 import type { DrizzleDb } from '../../../../database/database.module';
 import { tenantsTable, TenantRecord } from '../../../../database/schema/tenants.schema';
+import { TenantSchemaResolver } from '../../../../database/tenant-schema-resolver.service';
 import { Tenant } from '../../domain/entities/tenant.entity';
 import { TenantStatus } from '../../domain/value-objects/tenant-status.enum';
+import { Currency } from '../../domain/value-objects/currency.enum';
+import { FeeType } from '../../domain/value-objects/fee-type.enum';
 import type { TenantRepository } from '../../application/ports/tenant.repository.port';
 
 /**
  * Adaptador de persistencia para Tenants utilizando Drizzle ORM y PostgreSQL.
- *
- * Implementa el puerto `TenantRepository` respetando el principio de Inversión
- * de Dependencias (DIP) de SOLID.
+ * Administra la tabla central public.tenants (catálogo global del SaaS).
  */
 @Injectable()
 export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
@@ -21,12 +22,9 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDb,
     @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly schemaResolver: TenantSchemaResolver,
   ) {}
 
-  /**
-   * Al iniciar el módulo, aseguramos que la tabla central public.tenants
-   * exista si aún no se han ejecutado las migraciones manuales.
-   */
   async onModuleInit(): Promise<void> {
     try {
       await this.pool.query(`
@@ -36,14 +34,22 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
           slug VARCHAR(50) NOT NULL UNIQUE,
           schema_name VARCHAR(63) NOT NULL UNIQUE,
           status VARCHAR(20) NOT NULL DEFAULT 'PROVISIONING',
+          primary_currency VARCHAR(3) NOT NULL DEFAULT 'COP',
+          max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00,
+          fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED',
+          fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS primary_currency VARCHAR(3) NOT NULL DEFAULT 'COP';
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00;
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED';
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000;
       `);
-      this.logger.log('Tabla public.tenants verificada o inicializada.');
+      this.logger.log('Tabla central public.tenants verificada con parámetros financieros.');
     } catch {
       this.logger.warn(
-        'No se pudo verificar la tabla public.tenants en el arranque (posiblemente la DB aún no está disponible en este momento).',
+        'No se pudo verificar la tabla public.tenants en el arranque.',
       );
     }
   }
@@ -55,8 +61,18 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       slug: tenant.getSlug().getValue(),
       schemaName: tenant.getSchemaName(),
       status: tenant.getStatus(),
+      primaryCurrency: tenant.getPrimaryCurrency(),
+      maxTransactionAmount: tenant.getMaxTransactionAmount(),
+      feeType: tenant.getFeeType(),
+      feeValue: tenant.getFeeValue(),
       createdAt: tenant.getCreatedAt(),
       updatedAt: tenant.getUpdatedAt(),
+    });
+
+    this.schemaResolver.registerInCache({
+      schemaName: tenant.getSchemaName(),
+      tenantId: tenant.getId(),
+      slug: tenant.getSlug().getValue(),
     });
   }
 
@@ -66,9 +82,19 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       .set({
         name: tenant.getName(),
         status: tenant.getStatus(),
+        primaryCurrency: tenant.getPrimaryCurrency(),
+        maxTransactionAmount: tenant.getMaxTransactionAmount(),
+        feeType: tenant.getFeeType(),
+        feeValue: tenant.getFeeValue(),
         updatedAt: tenant.getUpdatedAt(),
       })
       .where(eq(tenantsTable.id, tenant.getId()));
+
+    this.schemaResolver.registerInCache({
+      schemaName: tenant.getSchemaName(),
+      tenantId: tenant.getId(),
+      slug: tenant.getSlug().getValue(),
+    });
   }
 
   async findBySlug(slug: string): Promise<Tenant | null> {
@@ -82,7 +108,13 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       return null;
     }
 
-    return this.mapToDomain(rows[0]);
+    const tenant = this.mapToDomain(rows[0]);
+    this.schemaResolver.registerInCache({
+      schemaName: tenant.getSchemaName(),
+      tenantId: tenant.getId(),
+      slug: tenant.getSlug().getValue(),
+    });
+    return tenant;
   }
 
   async findById(id: string): Promise<Tenant | null> {
@@ -96,7 +128,13 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       return null;
     }
 
-    return this.mapToDomain(rows[0]);
+    const tenant = this.mapToDomain(rows[0]);
+    this.schemaResolver.registerInCache({
+      schemaName: tenant.getSchemaName(),
+      tenantId: tenant.getId(),
+      slug: tenant.getSlug().getValue(),
+    });
+    return tenant;
   }
 
   async findAll(): Promise<Tenant[]> {
@@ -111,6 +149,10 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       slug: row.slug,
       schemaName: row.schemaName,
       status: row.status as TenantStatus,
+      primaryCurrency: (row.primaryCurrency as Currency) ?? Currency.COP,
+      maxTransactionAmount: row.maxTransactionAmount ?? '50000000.00',
+      feeType: (row.feeType as FeeType) ?? FeeType.FIXED,
+      feeValue: row.feeValue ?? '0.0000',
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });

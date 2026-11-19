@@ -56,7 +56,10 @@ export class GetTransactionDetailUseCase {
     }
 
     // 2. Buscar transacción por ID
-    const tx = await this.transactionRepository.findById(input.transactionId.trim());
+    const tx = await this.transactionRepository.findById(
+      input.transactionId.trim(),
+      tenant.getId(),
+    );
     if (!tx || tx.getTenantId() !== tenant.getId()) {
       throw new NotFoundException('Transacción no encontrada.');
     }
@@ -65,6 +68,7 @@ export class GetTransactionDetailUseCase {
     if (input.role === UserRole.CUSTOMER) {
       const customerAccounts = await this.accountRepository.listByCustomer(
         input.userId,
+        tenant.getId(),
       );
 
       const customerAccountIds = new Set(customerAccounts.map((a) => a.getId()));
@@ -80,7 +84,10 @@ export class GetTransactionDetailUseCase {
     }
 
     // 4. Obtener asientos de Ledger vinculados
-    const ledgerEntries = await this.ledgerRepository.listByTransaction(tx.getId());
+    const ledgerEntries = await this.ledgerRepository.listByTransaction(
+      tx.getId(),
+      tenant.getId(),
+    );
 
     // 5. Construir respuesta detallada con flags visuales
     const feeVal = Number(tx.getFeeAmount() ?? 0);

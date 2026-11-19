@@ -13,6 +13,7 @@ describe('RegisterTenantUseCase (HU-01)', () => {
   let useCase: RegisterTenantUseCase;
   let tenantRepository: jest.Mocked<TenantRepository>;
   let schemaProvisioner: jest.Mocked<SchemaProvisioner>;
+  let tenantSettingsRepo: any;
 
   beforeEach(() => {
     tenantRepository = {
@@ -27,7 +28,17 @@ describe('RegisterTenantUseCase (HU-01)', () => {
       provisionSchema: jest.fn().mockResolvedValue(undefined),
     };
 
-    useCase = new RegisterTenantUseCase(tenantRepository, schemaProvisioner);
+    tenantSettingsRepo = {
+      save: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue(undefined),
+      findByTenantId: jest.fn().mockResolvedValue(null),
+    };
+
+    useCase = new RegisterTenantUseCase(
+      tenantRepository,
+      schemaProvisioner,
+      tenantSettingsRepo,
+    );
   });
 
   it('CA-HU-01-01: debe registrar un tenant y dejarlo en estado ACTIVE tras aprovisionamiento exitoso', async () => {

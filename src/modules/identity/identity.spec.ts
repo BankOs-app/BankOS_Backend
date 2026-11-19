@@ -2,10 +2,15 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { JwtTokenService } from './infrastructure/security/jwt-token.service';
+import { PasswordHasher } from './infrastructure/security/password-hasher';
 import { UserRole } from './domain/value-objects/user-role.enum';
 import { AuthenticatedUser } from './domain/value-objects/authenticated-user.vo';
 import { TenantMatchGuard } from './presentation/guards/tenant-match.guard';
 import { RolesGuard } from './presentation/guards/roles.guard';
+import { AuthController } from './presentation/controllers/auth.controller';
+import { Tenant } from '../tenants/domain/entities/tenant.entity';
+import { User } from './domain/entities/user.entity';
+import { UserStatus } from './domain/value-objects/user-status.enum';
 
 describe('Identity & Access Control (HU-03)', () => {
   let tokenService: JwtTokenService;
@@ -145,5 +150,262 @@ describe('Identity & Access Control (HU-03)', () => {
       expect(() => guard.canActivate(mockContext)).toThrow(ForbiddenException);
     });
   });
+
+  describe('AuthController (Flujo de Login para Flutter)', () => {
+    let authController: AuthController;
+    let mockTenantRepo: any;
+    let mockUserRepo: any;
+
+    beforeEach(() => {
+      mockTenantRepo = {
+        findBySlug: jest.fn().mockImplementation(async (slug: string) => {
+          if (slug === 'banco-bogota') {
+            return Tenant.reconstitute({
+              id: 'tnt-uuid-1',
+              name: 'Banco de Bogotá',
+              slug: 'banco-bogota',
+              schemaName: 'tenant_banco_bogota',
+              status: 'ACTIVE' as any,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          if (slug === 'banco-santander') {
+            return Tenant.reconstitute({
+              id: 'tnt-uuid-2',
+              name: 'Banco Santander',
+              slug: 'banco-santander',
+              schemaName: 'tenant_banco_santander',
+              status: 'ACTIVE' as any,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          return null;
+        }),
+        findById: jest.fn().mockImplementation(async (id: string) => {
+          if (id === 'tnt-uuid-1') {
+            return Tenant.reconstitute({
+              id: 'tnt-uuid-1',
+              name: 'Banco de Bogotá',
+              slug: 'banco-bogota',
+              schemaName: 'tenant_banco_bogota',
+              status: 'ACTIVE' as any,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          return null;
+        }),
+      };
+
+      mockUserRepo = {
+        findByEmail: jest.fn().mockImplementation(async (tenantId: string, email: string) => {
+          if (email === 'carlos@global.com' && tenantId === 'tnt-uuid-1') {
+            return User.reconstitute({
+              id: 'usr-carlos-bogota',
+              tenantId: 'tnt-uuid-1',
+              email: 'carlos@global.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.ACTIVE,
+              passwordHash: PasswordHasher.hash('1111'),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          if (email === 'carlos@global.com' && tenantId === 'tnt-uuid-2') {
+            return User.reconstitute({
+              id: 'usr-carlos-santander',
+              tenantId: 'tnt-uuid-2',
+              email: 'carlos@global.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.ACTIVE,
+              passwordHash: PasswordHasher.hash('2222'),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          if (email === 'carlos@bogota.com') {
+            return User.reconstitute({
+              id: 'usr-carlos-1',
+              tenantId: 'tnt-uuid-1',
+              email: 'carlos@bogota.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.ACTIVE,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          if (email === 'pinuser@bogota.com') {
+            return User.reconstitute({
+              id: 'usr-pin-1',
+              tenantId: 'tnt-uuid-1',
+              email: 'pinuser@bogota.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.ACTIVE,
+              passwordHash: PasswordHasher.hash('4321'),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          if (email === 'bloqueado@bogota.com') {
+            return User.reconstitute({
+              id: 'usr-bloqueado-1',
+              tenantId: 'tnt-uuid-1',
+              email: 'bloqueado@bogota.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.BLOCKED,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          return null;
+        }),
+        findAnyByEmail: jest.fn().mockImplementation(async (email: string) => {
+          if (email === 'carlos@bogota.com') {
+            return User.reconstitute({
+              id: 'usr-carlos-1',
+              tenantId: 'tnt-uuid-1',
+              email: 'carlos@bogota.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.ACTIVE,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          if (email === 'pinuser@bogota.com') {
+            return User.reconstitute({
+              id: 'usr-pin-1',
+              tenantId: 'tnt-uuid-1',
+              email: 'pinuser@bogota.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.ACTIVE,
+              passwordHash: PasswordHasher.hash('4321'),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          if (email === 'bloqueado@bogota.com') {
+            return User.reconstitute({
+              id: 'usr-bloqueado-1',
+              tenantId: 'tnt-uuid-1',
+              email: 'bloqueado@bogota.com',
+              role: UserRole.CUSTOMER,
+              status: UserStatus.BLOCKED,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          return null;
+        }),
+      };
+
+      authController = new AuthController(
+        tokenService,
+        mockTenantRepo,
+        mockUserRepo,
+      );
+    });
+
+    it('debe iniciar sesión exitosamente con slug y email', async () => {
+      const result = await authController.login({
+        tenantSlug: 'banco-bogota',
+        email: 'carlos@bogota.com',
+      });
+
+      expect(result).toHaveProperty('access_token');
+      expect(result.user.email).toBe('carlos@bogota.com');
+      expect(result.user.role).toBe(UserRole.CUSTOMER);
+      expect(result.user.tenantSlug).toBe('banco-bogota');
+    });
+
+    it('debe lanzar NotFoundException si el banco no existe', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: 'banco-inexistente',
+          email: 'carlos@bogota.com',
+        }),
+      ).rejects.toThrow('La institución bancaria con identificador \'banco-inexistente\' no existe.');
+    });
+
+    it('debe lanzar UnauthorizedException si el usuario no existe en ese banco', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: 'banco-bogota',
+          email: 'noexiste@bogota.com',
+        }),
+      ).rejects.toThrow('No existe ningún usuario registrado');
+    });
+
+    it('debe iniciar sesión exitosamente cuando el PIN o contraseña es correcto', async () => {
+      const result = await authController.login({
+        tenantSlug: 'banco-bogota',
+        email: 'pinuser@bogota.com',
+        password: '4321',
+      });
+
+      expect(result).toHaveProperty('access_token');
+      expect(result.user.email).toBe('pinuser@bogota.com');
+    });
+
+    it('debe lanzar UnauthorizedException si el PIN o contraseña es incorrecto', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: 'banco-bogota',
+          email: 'pinuser@bogota.com',
+          password: '0000',
+        }),
+      ).rejects.toThrow('El PIN de 4 dígitos ingresado es incorrecto.');
+    });
+
+    it('debe lanzar UnauthorizedException si el usuario tiene PIN pero no se envía en el login', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: 'banco-bogota',
+          email: 'pinuser@bogota.com',
+        }),
+      ).rejects.toThrow('El PIN de 4 dígitos ingresado es incorrecto.');
+    });
+
+    it('debe rechazar el login con BadRequestException si no se envía tenantSlug', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: '',
+          email: 'pinuser@bogota.com',
+          password: '4321',
+        }),
+      ).rejects.toThrow('El identificador del banco (tenantSlug) es obligatorio');
+    });
+
+    it('debe permitir que un mismo usuario inicie sesión en diferentes bancos según el tenantSlug indicado', async () => {
+      // 1. Inicia sesión en Banco de Bogotá
+      const sessionBogota = await authController.login({
+        tenantSlug: 'banco-bogota',
+        email: 'carlos@global.com',
+        password: '1111',
+      });
+      expect(sessionBogota.user.tenantSlug).toBe('banco-bogota');
+      expect(sessionBogota.user.userId).toBe('usr-carlos-bogota');
+
+      // 2. Inicia sesión en Banco Santander
+      const sessionSantander = await authController.login({
+        tenantSlug: 'banco-santander',
+        email: 'carlos@global.com',
+        password: '2222',
+      });
+      expect(sessionSantander.user.tenantSlug).toBe('banco-santander');
+      expect(sessionSantander.user.userId).toBe('usr-carlos-santander');
+    });
+
+    it('debe lanzar ForbiddenException si el usuario está bloqueado', async () => {
+      await expect(
+        authController.login({
+          tenantSlug: 'banco-bogota',
+          email: 'bloqueado@bogota.com',
+        }),
+      ).rejects.toThrow('se encuentra inactiva o bloqueada');
+    });
+  });
 });
+
 

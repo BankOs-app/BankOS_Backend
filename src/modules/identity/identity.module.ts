@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
+import { TenantsModule } from '../tenants/tenants.module';
 import { USER_REPOSITORY } from './application/ports/user.repository.port';
 import { DrizzleUserRepository } from './infrastructure/persistence/drizzle-user.repository';
 import { BlockUserUseCase } from './application/use-cases/block-user.use-case';
@@ -14,7 +15,7 @@ import { AuthController } from './presentation/controllers/auth.controller';
  */
 @Global()
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, TenantsModule],
   controllers: [AuthController],
   providers: [
     JwtTokenService,
@@ -37,3 +38,4 @@ import { AuthController } from './presentation/controllers/auth.controller';
   ],
 })
 export class IdentityModule {}
+

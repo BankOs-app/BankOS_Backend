@@ -54,7 +54,7 @@ export class CreateAccountUseCase {
     const tenantId = tenant.getId();
 
     // 2. Validar que el cliente exista
-    const customer = await this.customerRepository.findById(input.customerId);
+    const customer = await this.customerRepository.findById(input.customerId, tenantId);
     if (!customer) {
       throw new NotFoundException(
         `Cliente con ID '${input.customerId}' no encontrado.`,

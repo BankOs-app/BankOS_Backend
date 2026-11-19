@@ -42,6 +42,27 @@ export class TenantSettings {
     this.updatedAt = props.updatedAt;
   }
 
+  public static create(params: {
+    tenantId: string;
+    primaryCurrency?: Currency;
+    maxTransactionAmount?: string;
+    feeType?: FeeType;
+    feeValue?: string;
+    id?: string;
+  }): TenantSettings {
+    const now = new Date();
+    return new TenantSettings({
+      id: params.id ?? randomUUID(),
+      tenantId: params.tenantId,
+      primaryCurrency: params.primaryCurrency ?? Currency.COP,
+      maxTransactionAmount: params.maxTransactionAmount ?? '50000000.00',
+      feeType: params.feeType ?? FeeType.FIXED,
+      feeValue: params.feeValue ?? '0.00',
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
   public static createDefault(tenantId: string): TenantSettings {
     const now = new Date();
     return new TenantSettings({
