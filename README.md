@@ -32,7 +32,7 @@ src/
 
 ## 📋 Requisitos Previos
 
-- **Node.js**: Versión `20.19+`, `22.12+` o superior.
+- **Node.js**: Versión `20.19+` o `22.12+` para ejecutar la API. Para correr las pruebas Jest de NestJS 12, use Node.js `24.9+` (el CI usa la línea 24).
 - **npm**: Gestor de paquetes oficial.
 - **Docker & Docker Compose**: Para orquestar PostgreSQL 16, Redis 7 y Keycloak 24.
 - **Git**.
