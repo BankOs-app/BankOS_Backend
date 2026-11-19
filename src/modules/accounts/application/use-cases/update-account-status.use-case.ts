@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { TENANT_REPOSITORY } from '../../../tenants/application/ports/tenant.repository.port';
 import type { TenantRepository } from '../../../tenants/application/ports/tenant.repository.port';
@@ -10,6 +11,8 @@ import { ACCOUNT_REPOSITORY } from '../ports/account.repository.port';
 import type { AccountRepository } from '../ports/account.repository.port';
 import { AccountStatus } from '../../domain/value-objects/account-status.enum';
 import { AccountResponseDto } from '../dto/account-response.dto';
+import { RecordAuditLogUseCase } from '../../../audit/application/use-cases/record-audit-log.use-case';
+import { AuditAction } from '../../../audit/domain/value-objects/audit-action.enum';
 
 @Injectable()
 export class UpdateAccountStatusUseCase {
@@ -18,6 +21,8 @@ export class UpdateAccountStatusUseCase {
     private readonly tenantRepository: TenantRepository,
     @Inject(ACCOUNT_REPOSITORY)
     private readonly accountRepository: AccountRepository,
+    @Optional()
+    private readonly recordAuditLogUseCase?: RecordAuditLogUseCase,
   ) {}
 
   async execute(
@@ -43,6 +48,8 @@ export class UpdateAccountStatusUseCase {
       );
     }
 
+    const previousStatus = account.getStatus();
+
     switch (newStatus) {
       case AccountStatus.ACTIVE:
         account.activate();
@@ -59,6 +66,20 @@ export class UpdateAccountStatusUseCase {
     }
 
     await this.accountRepository.update(account);
+
+    if (this.recordAuditLogUseCase) {
+      await this.recordAuditLogUseCase
+        .execute({
+          tenantId: tenant.getId(),
+          actorId: 'admin',
+          action: AuditAction.UPDATE_ACCOUNT_STATUS,
+          resource: 'accounts',
+          resourceId: account.getId(),
+          previousValues: { status: previousStatus },
+          newValues: { status: account.getStatus() },
+        })
+        .catch(() => {});
+    }
 
     return AccountResponseDto.fromDomain(account);
   }

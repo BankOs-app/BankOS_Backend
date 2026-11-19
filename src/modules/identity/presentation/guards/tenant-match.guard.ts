@@ -24,9 +24,15 @@ export class TenantMatchGuard implements CanActivate {
       return true;
     }
 
-    if (user.tenantSlug && user.tenantSlug.toLowerCase() !== tenantSlugParam.toLowerCase()) {
+    const paramLower = tenantSlugParam.trim().toLowerCase();
+    const matchesSlug =
+      user.tenantSlug && user.tenantSlug.toLowerCase() === paramLower;
+    const matchesId =
+      user.tenantId && user.tenantId.toLowerCase() === paramLower;
+
+    if (!matchesSlug && !matchesId) {
       throw new ForbiddenException(
-        `Violación de aislamiento multitenant: el usuario pertenece al tenant '${user.tenantSlug}' y no tiene autorización para operar en '${tenantSlugParam}'.`,
+        `Violación de aislamiento multitenant: el usuario pertenece al tenant '${user.tenantSlug || user.tenantId}' y no tiene autorización para operar en '${tenantSlugParam}'.`,
       );
     }
 

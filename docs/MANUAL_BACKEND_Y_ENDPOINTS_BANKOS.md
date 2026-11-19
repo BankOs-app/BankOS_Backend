@@ -127,7 +127,7 @@ Dentro de cada módulo (por ejemplo en `src/modules/accounts/` o `src/modules/tr
 | :--- | :--- | :--- | :--- |
 | **`Content-Type`** | En todos los `POST`, `PUT`, `PATCH` | Indica formato JSON | `application/json` |
 | **`Authorization`** | En endpoints protegidos (después del login) | El token JWT obtenido en el login | `Bearer eyJhbGciOi...` |
-| **`Idempotency-Key`** | **Obligatorio en transferencias, retiros y depósitos** | Un UUID v4 generado aleatoriamente en Flutter antes de enviar | `e2b86d9b-76bb-49e2-b13c-7a91c107293a` |
+| **`Idempotency-Key`** | **Obligatorio en transferencias, retiros y depósitos** | Un UUID v4 generado aleatoriamente en Flutter antes de enviar | `e2b86d9b-76bb-49e2-b13c-7a91c107293a` <!-- gitleaks:allow --> |
 | **`X-Correlation-ID`** | Opcional (si no lo mandas, el backend lo genera) | UUID para rastrear la petición en los logs | `a8d388b4-804c-470b-8f80-76dc3b9e1cd9` |
 
 ---

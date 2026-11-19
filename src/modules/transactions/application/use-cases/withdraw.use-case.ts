@@ -1,13 +1,17 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { TENANT_REPOSITORY } from '../../../tenants/application/ports/tenant.repository.port';
 import type { TenantRepository } from '../../../tenants/application/ports/tenant.repository.port';
 import { TENANT_SETTINGS_REPOSITORY } from '../../../tenants/application/ports/tenant-settings.repository.port';
 import type { TenantSettingsRepository } from '../../../tenants/application/ports/tenant-settings.repository.port';
+import { EXCHANGE_RATE_REPOSITORY } from '../../../tenants/application/ports/exchange-rate.repository.port';
+import type { ExchangeRateRepository } from '../../../tenants/application/ports/exchange-rate.repository.port';
 import { ACCOUNT_REPOSITORY } from '../../../accounts/application/ports/account.repository.port';
 import type { AccountRepository } from '../../../accounts/application/ports/account.repository.port';
 import { TRANSACTION_REPOSITORY } from '../ports/transaction.repository.port';
@@ -24,6 +28,7 @@ export interface WithdrawInput {
   accountNumber: string;
   amount: string;
   idempotencyKey: string;
+  userId?: string;
 }
 
 /**
@@ -52,6 +57,9 @@ export class WithdrawUseCase {
     private readonly transactionRepository: TransactionRepository,
     @Inject(LEDGER_REPOSITORY)
     private readonly ledgerRepository: LedgerRepository,
+    @Optional()
+    @Inject(EXCHANGE_RATE_REPOSITORY)
+    private readonly exchangeRateRepository?: ExchangeRateRepository,
   ) {}
 
   async execute(input: WithdrawInput): Promise<WithdrawResponseDto> {
@@ -74,6 +82,12 @@ export class WithdrawUseCase {
       );
     }
 
+    if (input.userId && account.getCustomerId() !== input.userId) {
+      throw new ForbiddenException(
+        'No tiene autorización para retirar fondos de una cuenta que no le pertenece.',
+      );
+    }
+
     // 3. Validar estado activo de la cuenta
     if (!account.canTransact()) {
       throw new BadRequestException(
@@ -93,9 +107,33 @@ export class WithdrawUseCase {
     const settings = await this.settingsRepository.findByTenantId(tenant.getId());
     if (settings) {
       const maxLimit = Number(settings.getMaxTransactionAmount());
-      if (amountNum > maxLimit) {
+      const accountCurrency = account.getCurrency();
+      const primaryCurrency = settings.getPrimaryCurrency();
+      let amountInPrimaryCurrency = amountNum;
+
+      if (accountCurrency !== primaryCurrency && this.exchangeRateRepository) {
+        const directRate = await this.exchangeRateRepository.findRate(
+          tenant.getId(),
+          accountCurrency,
+          primaryCurrency,
+        );
+        if (directRate) {
+          amountInPrimaryCurrency = amountNum * Number(directRate.getRate());
+        } else {
+          const inverseRate = await this.exchangeRateRepository.findRate(
+            tenant.getId(),
+            primaryCurrency,
+            accountCurrency,
+          );
+          if (inverseRate) {
+            amountInPrimaryCurrency = amountNum / Number(inverseRate.getRate());
+          }
+        }
+      }
+
+      if (amountInPrimaryCurrency > maxLimit) {
         throw new BadRequestException(
-          `El monto del retiro (${input.amount}) excede el límite máximo permitido por transacción (${settings.getMaxTransactionAmount()} ${settings.getPrimaryCurrency()}).`,
+          `El monto del retiro (${input.amount} ${accountCurrency}) excede el límite máximo permitido por transacción (${settings.getMaxTransactionAmount()} ${settings.getPrimaryCurrency()}).`,
         );
       }
     }

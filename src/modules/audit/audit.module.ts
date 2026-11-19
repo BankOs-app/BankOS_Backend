@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Global, Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { TenantsModule } from '../tenants/tenants.module';
 import { AUDIT_LOG_REPOSITORY } from './application/ports/audit-log.repository.port';
@@ -11,8 +11,9 @@ import { AuditController } from './presentation/controllers/audit.controller';
  * Módulo de Auditoría Administrativa (Épica EP-05: HU-14).
  * Provee persistencia inmutable de eventos sensibles y consulta para administradores.
  */
+@Global()
 @Module({
-  imports: [DatabaseModule, TenantsModule],
+  imports: [DatabaseModule, forwardRef(() => TenantsModule)],
   controllers: [AuditController],
   providers: [
     RecordAuditLogUseCase,

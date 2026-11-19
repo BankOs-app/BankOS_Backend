@@ -15,20 +15,32 @@ describe('Tenant Financial Domain Rules (HU-02)', () => {
       expect(settings.getFeeValue()).toBe('0.00');
     });
 
-    it('CA-HU-02-01: debe permitir actualizar configuración válida', () => {
+    it('CA-HU-02-01: debe permitir actualizar configuración válida y alternar entre FIXED y VARIABLE', () => {
       const settings = TenantSettings.createDefault('tenant-uuid-1');
 
       settings.update({
         primaryCurrency: Currency.USD,
         maxTransactionAmount: '10000.00',
-        feeType: FeeType.PERCENTAGE,
+        feeType: FeeType.VARIABLE,
         feeValue: '2.5',
       });
 
       expect(settings.getPrimaryCurrency()).toBe(Currency.USD);
       expect(settings.getMaxTransactionAmount()).toBe('10000.00');
-      expect(settings.getFeeType()).toBe(FeeType.PERCENTAGE);
+      expect(settings.getFeeType()).toBe(FeeType.VARIABLE);
       expect(settings.getFeeValue()).toBe('2.5');
+
+      // Alternar de VARIABLE a FIXED
+      settings.update({
+        primaryCurrency: Currency.COP,
+        maxTransactionAmount: '20000000.00',
+        feeType: FeeType.FIXED,
+        feeValue: '3000.00',
+      });
+
+      expect(settings.getPrimaryCurrency()).toBe(Currency.COP);
+      expect(settings.getFeeType()).toBe(FeeType.FIXED);
+      expect(settings.getFeeValue()).toBe('3000.00');
     });
 
     it('CA-HU-02-03: debe rechazar comisión porcentual mayor a 100% o menor a 0%', () => {

@@ -7,14 +7,21 @@ import {
   Param,
   Post,
   Put,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../../identity/presentation/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../identity/presentation/guards/roles.guard';
+import { TenantMatchGuard } from '../../../identity/presentation/guards/tenant-match.guard';
+import { Roles } from '../../../identity/presentation/decorators/roles.decorator';
+import { UserRole } from '../../../identity/domain/value-objects/user-role.enum';
 import { GetTenantSettingsUseCase } from '../../application/use-cases/get-tenant-settings.use-case';
 import { UpdateTenantSettingsUseCase } from '../../application/use-cases/update-tenant-settings.use-case';
 import { SetExchangeRateUseCase } from '../../application/use-cases/set-exchange-rate.use-case';
@@ -25,6 +32,8 @@ import { TenantSettingsResponseDto } from '../../application/dto/tenant-settings
 import { ExchangeRateResponseDto } from '../../application/dto/exchange-rate-response.dto';
 
 @ApiTags('Tenant Settings & Exchange Rates (HU-02)')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard, TenantMatchGuard)
 @Controller('tenants/:slug')
 export class TenantSettingsController {
   constructor(
@@ -49,6 +58,7 @@ export class TenantSettingsController {
   }
 
   @Put('settings')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Actualizar configuración financiera de un tenant',
     description:
@@ -100,6 +110,7 @@ export class TenantSettingsController {
   }
 
   @Post('exchange-rates')
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Registrar o actualizar la tasa de cambio estática entre dos divisas',

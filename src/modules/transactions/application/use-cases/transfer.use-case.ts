@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -19,6 +20,7 @@ import { LEDGER_REPOSITORY } from '../../../ledger/application/ports/ledger.repo
 import type { LedgerRepository } from '../../../ledger/application/ports/ledger.repository.port';
 import { OUTBOX_REPOSITORY } from '../../../webhooks/application/ports/outbox.repository.port';
 import type { OutboxRepository } from '../../../webhooks/application/ports/outbox.repository.port';
+import { OutboxDispatcherService } from '../../../webhooks/application/services/outbox-dispatcher.service';
 import { OutboxEvent } from '../../../webhooks/domain/entities/outbox-event.entity';
 import { Transaction } from '../../domain/entities/transaction.entity';
 import { LedgerEntry } from '../../../ledger/domain/entities/ledger-entry.entity';
@@ -32,6 +34,7 @@ export interface TransferInput {
   destinationAccountNumber: string;
   targetAmount: string;
   idempotencyKey: string;
+  userId?: string;
 }
 
 /**
@@ -63,6 +66,8 @@ export class TransferUseCase {
     @Optional()
     @Inject(OUTBOX_REPOSITORY)
     private readonly outboxRepository?: OutboxRepository,
+    @Optional()
+    private readonly outboxDispatcherService?: OutboxDispatcherService,
   ) {}
 
   async execute(input: TransferInput): Promise<TransferResponseDto> {
@@ -82,6 +87,12 @@ export class TransferUseCase {
     if (!sourceAccount) {
       throw new NotFoundException(
         `Cuenta origen '${input.sourceAccountNumber}' no encontrada en esta institución.`,
+      );
+    }
+
+    if (input.userId && sourceAccount.getCustomerId() !== input.userId) {
+      throw new ForbiddenException(
+        'No tiene autorización para transferir fondos desde una cuenta que no le pertenece.',
       );
     }
 
@@ -165,10 +176,38 @@ export class TransferUseCase {
 
     // 8. Calcular comisión adicional en moneda de origen
     let feeNum = 0;
-    if (feeType === FeeType.FIXED) {
-      feeNum = feeValue;
-    } else {
+    const isVariableFee =
+      feeType === FeeType.VARIABLE || feeType === FeeType.PERCENTAGE;
+
+    if (isVariableFee) {
       feeNum = Number((sourceEquivalent * (feeValue / 100)).toFixed(2));
+    } else {
+      // Tarifa fija: feeValue está expresado en la moneda principal del tenant
+      const primaryCurrency = settings ? settings.getPrimaryCurrency() : sourceCurrency;
+      if (sourceCurrency === primaryCurrency) {
+        feeNum = feeValue;
+      } else {
+        // Convertir feeValue (en primaryCurrency) a la moneda de la cuenta origen
+        const directRate = await this.exchangeRateRepository.findRate(
+          tenant.getId(),
+          primaryCurrency,
+          sourceCurrency,
+        );
+        if (directRate) {
+          feeNum = Number((feeValue * Number(directRate.getRate())).toFixed(2));
+        } else {
+          const inverseRate = await this.exchangeRateRepository.findRate(
+            tenant.getId(),
+            sourceCurrency,
+            primaryCurrency,
+          );
+          if (inverseRate) {
+            feeNum = Number((feeValue / Number(inverseRate.getRate())).toFixed(2));
+          } else {
+            feeNum = feeValue;
+          }
+        }
+      }
     }
 
     const feeAmountStr = feeNum.toFixed(2);
@@ -179,7 +218,30 @@ export class TransferUseCase {
     // 9. Validar límite máximo configurado
     if (settings) {
       const maxLimit = Number(settings.getMaxTransactionAmount());
-      if (totalDebitNum > maxLimit) {
+      const primaryCurrency = settings.getPrimaryCurrency();
+      let totalDebitInPrimaryCurrency = totalDebitNum;
+
+      if (sourceCurrency !== primaryCurrency) {
+        const directRate = await this.exchangeRateRepository.findRate(
+          tenant.getId(),
+          sourceCurrency,
+          primaryCurrency,
+        );
+        if (directRate) {
+          totalDebitInPrimaryCurrency = totalDebitNum * Number(directRate.getRate());
+        } else {
+          const inverseRate = await this.exchangeRateRepository.findRate(
+            tenant.getId(),
+            primaryCurrency,
+            sourceCurrency,
+          );
+          if (inverseRate) {
+            totalDebitInPrimaryCurrency = totalDebitNum / Number(inverseRate.getRate());
+          }
+        }
+      }
+
+      if (totalDebitInPrimaryCurrency > maxLimit) {
         throw new BadRequestException(
           `El total a debitar (${totalDebitStr} ${sourceCurrency}) excede el límite máximo permitido por transacción (${settings.getMaxTransactionAmount()} ${settings.getPrimaryCurrency()}).`,
         );
@@ -257,6 +319,11 @@ export class TransferUseCase {
     await this.ledgerRepository.save(creditLedger);
     if (this.outboxRepository) {
       await this.outboxRepository.save(outboxEvent);
+      if (this.outboxDispatcherService) {
+        setImmediate(() => {
+          this.outboxDispatcherService!.processSingleEvent(outboxEvent).catch(() => {});
+        });
+      }
     }
 
     // 15. Construir y devolver respuesta

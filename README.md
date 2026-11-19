@@ -156,7 +156,7 @@ Para facilitar la evaluación de los jueces, se incluye una colección lista par
 ### Escenario 2: Resiliencia e Idempotencia Absoluta (CA-HU-16-04)
 1. **Primer envío**: Carlos realiza un abono a su cuenta:
    - `POST /api/v1/tenants/banco-bogota/transactions/deposits`
-   - Encabezado: `Idempotency-Key: a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6`
+   - Encabezado: `Idempotency-Key: a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6` <!-- gitleaks:allow -->
    - Cuerpo: `{"accountNumber": "1001001001", "amount": "150000.00"}`
    - **Resultado**: `201 Created`. Saldo aumenta a $5,150,000 COP.
 2. **Reintento transparente**: Simulación de reintento por pérdida momentánea de conectividad usando exactamente el mismo `Idempotency-Key`:
@@ -177,7 +177,7 @@ Para facilitar la evaluación de los jueces, se incluye una colección lista par
      - Total a debitar exacto sin afectar saldos.
 2. **Confirmación y Ejecución Atómica**:
    - `POST /api/v1/tenants/banco-bogota/transactions/transfers`
-   - Encabezado: `Idempotency-Key: f47ac10b-58cc-4372-a567-0e02b2c3d479`
+   - Encabezado: `Idempotency-Key: f47ac10b-58cc-4372-a567-0e02b2c3d479` <!-- gitleaks:allow -->
    - **Resultado `201 Created`**:
      - Se debita la cuenta origen en USD.
      - Se acredita la cuenta destino en COP.

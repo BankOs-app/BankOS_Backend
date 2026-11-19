@@ -18,13 +18,16 @@ function hashPin(plain: string): string {
  *   3. tenant_banco_lombia
  *   4. tenant_banco_nu
  */
-async function runSeed() {
+export async function runSeed(existingPool?: Pool) {
   const connectionString =
     process.env.DATABASE_URL ||
     'postgres://postgres:postgres@localhost:5432/bankos_db';
 
-  console.log(`[Seed] Conectando a PostgreSQL: ${connectionString.replace(/:[^:@]+@/, ':****@')}`);
-  const pool = new Pool({ connectionString });
+  const shouldClose = !existingPool;
+  const pool = existingPool ?? new Pool({ connectionString });
+  if (shouldClose) {
+    console.log(`[Seed] Conectando a PostgreSQL: ${connectionString.replace(/:[^:@]+@/, ':****@')}`);
+  }
 
   try {
     // 1. Configurar tabla central public.tenants con columnas financieras
@@ -372,8 +375,50 @@ async function runSeed() {
   } catch (error) {
     console.error('❌ Error durante la ejecución del seed:', error);
   } finally {
-    await pool.end();
+    if (shouldClose) {
+      await pool.end();
+    }
   }
 }
 
-void runSeed();
+export async function autoSeedIfEmpty() {
+  const connectionString =
+    process.env.DATABASE_URL ||
+    'postgres://postgres:postgres@localhost:5432/bankos_db';
+
+  const pool = new Pool({ connectionString });
+  try {
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'tenants'
+      );
+    `);
+    if (tableCheck.rows[0]?.exists) {
+      const countCheck = await pool.query(
+        'SELECT COUNT(*) as count FROM public.tenants',
+      );
+      if (parseInt(countCheck.rows[0]?.count ?? '0', 10) > 0) {
+        return;
+      }
+    }
+    console.log(
+      '[AutoSeed] Base de datos vacía o sin tenants. Sembrando esquemas y datos iniciales para demostración...',
+    );
+    await runSeed(pool);
+  } catch (error) {
+    console.warn(
+      '[AutoSeed] No se pudo verificar o sembrar la base de datos:',
+      error,
+    );
+  } finally {
+    await pool.end().catch(() => {});
+  }
+}
+
+const isDirectExecution =
+  process.argv[1]?.endsWith('demo-seed.ts') ||
+  process.argv[1]?.endsWith('demo-seed.js');
+if (isDirectExecution) {
+  void runSeed();
+}

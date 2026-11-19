@@ -71,6 +71,16 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  // Ejecutar auto-seed si la base de datos está vacía para que Docker Compose o nuevos entornos queden listos
+  if (process.env.AUTO_SEED !== 'false') {
+    try {
+      const { autoSeedIfEmpty } = await import('./database/seeds/demo-seed.js');
+      await autoSeedIfEmpty();
+    } catch (err) {
+      console.warn('[Bootstrap] Auto-seed omitido o error no fatal:', err);
+    }
+  }
+
   // Obtiene el puerto desde las variables de entorno (.env) o usa el 3000 por defecto
   const port = process.env.PORT ?? 3000;
   await app.listen(port);

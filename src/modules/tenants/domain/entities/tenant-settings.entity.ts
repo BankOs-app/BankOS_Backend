@@ -123,7 +123,7 @@ export class TenantSettings {
       throw new Error('El valor de la comisión no puede ser negativo.');
     }
 
-    if (props.feeType === FeeType.PERCENTAGE) {
+    if (props.feeType === FeeType.PERCENTAGE || props.feeType === FeeType.VARIABLE) {
       if (feeNum < 0 || feeNum > 100) {
         throw new Error(
           'La comisión porcentual debe encontrarse dentro del rango permitido (0% a 100%).',

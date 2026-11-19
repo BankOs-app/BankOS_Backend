@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { TENANT_REPOSITORY } from '../../../tenants/application/ports/tenant.repository.port';
 import type { TenantRepository } from '../../../tenants/application/ports/tenant.repository.port';
@@ -16,6 +17,8 @@ import { UserRole } from '../../../identity/domain/value-objects/user-role.enum'
 import { PasswordHasher } from '../../../identity/infrastructure/security/password-hasher';
 import { Customer } from '../../domain/entities/customer.entity';
 import { CustomerResponseDto } from '../dto/customer-response.dto';
+import { RecordAuditLogUseCase } from '../../../audit/application/use-cases/record-audit-log.use-case';
+import { AuditAction } from '../../../audit/domain/value-objects/audit-action.enum';
 
 export interface CreateCustomerInput {
   tenantSlug: string;
@@ -46,6 +49,8 @@ export class CreateCustomerUseCase {
     private readonly userRepository: UserRepository,
     @Inject(CUSTOMER_REPOSITORY)
     private readonly customerRepository: CustomerRepository,
+    @Optional()
+    private readonly recordAuditLogUseCase?: RecordAuditLogUseCase,
   ) {}
 
   async execute(input: CreateCustomerInput): Promise<CustomerResponseDto> {
@@ -109,6 +114,24 @@ export class CreateCustomerUseCase {
     // 5. Persistir ambas entidades
     await this.userRepository.save(user);
     await this.customerRepository.save(customer);
+
+    if (this.recordAuditLogUseCase) {
+      await this.recordAuditLogUseCase
+        .execute({
+          tenantId,
+          actorId: 'admin',
+          action: AuditAction.CREATE_CUSTOMER,
+          resource: 'customers',
+          resourceId: customer.getId(),
+          newValues: {
+            fullName: customer.getFullName(),
+            documentNumber: customer.getDocumentNumber(),
+            email: customer.getEmail(),
+            userId: user.getId(),
+          },
+        })
+        .catch(() => {});
+    }
 
     return CustomerResponseDto.fromDomain(customer);
   }
