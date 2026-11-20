@@ -82,6 +82,8 @@ export async function runSeed(existingPool?: Pool) {
       CREATE TABLE IF NOT EXISTS public.tenants (
         id UUID PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
+        code VARCHAR(50),
+        subdomain VARCHAR(253),
         slug VARCHAR(50) NOT NULL UNIQUE,
         status VARCHAR(20) NOT NULL DEFAULT 'PROVISIONING',
         schema_name VARCHAR(63) NOT NULL UNIQUE,
@@ -97,6 +99,14 @@ export async function runSeed(existingPool?: Pool) {
       );
 
       ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS primary_currency VARCHAR(3) NOT NULL DEFAULT 'COP';
+      ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS code VARCHAR(50);
+      ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subdomain VARCHAR(253);
+      UPDATE public.tenants SET code = UPPER(slug) WHERE code IS NULL;
+      UPDATE public.tenants SET subdomain = slug || '.bankos.io' WHERE subdomain IS NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS tenants_code_unique_idx ON public.tenants (code);
+      CREATE UNIQUE INDEX IF NOT EXISTS tenants_subdomain_unique_idx ON public.tenants (subdomain);
+      ALTER TABLE public.tenants ALTER COLUMN code SET NOT NULL;
+      ALTER TABLE public.tenants ALTER COLUMN subdomain SET NOT NULL;
       ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00;
       ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED';
       ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000;
@@ -125,14 +135,16 @@ export async function runSeed(existingPool?: Pool) {
     const tenantNuId = '47130a5f-3368-4a0b-ab77-0982b6a07a96';
 
     await pool.query(`
-      INSERT INTO public.tenants (id, name, slug, status, schema_name, primary_currency, max_transaction_amount, fee_type, fee_value, primary_color, accent_color, logo_url)
+      INSERT INTO public.tenants (id, name, code, subdomain, slug, status, schema_name, primary_currency, max_transaction_amount, fee_type, fee_value, primary_color, accent_color, logo_url)
       VALUES 
-        ('${tenantBogotaId}', 'Banco de Bogotá', 'banco-bogota', 'ACTIVE', 'tenant_banco_bogota', 'COP', 50000000.00, 'FIXED', 2500.0000, '#002D72', '#004BB1', 'banco-bogota'),
-        ('${tenantSantanderId}', 'Banco Santander', 'banco-santander', 'ACTIVE', 'tenant_banco_santander', 'USD', 10000.00, 'PERCENTAGE', 1.5000, '#EC0000', '#CC0000', 'banco-santander'),
-        ('${tenantLombiaId}', 'Bancolombia', 'banco-lombia', 'ACTIVE', 'tenant_banco_lombia', 'COP', 50000000.00, 'FIXED', 2500.0000, '#000000', '#FDDA24', 'bancolombia'),
-        ('${tenantNuId}', 'Banco de NU', 'banco-nu', 'ACTIVE', 'tenant_banco_nu', 'COP', 20000000.00, 'FIXED', 0.0000, '#820AD1', '#9B3FE6', 'banco-nu')
+        ('${tenantBogotaId}', 'Banco de Bogotá', 'BANCO-BOGOTA', 'banco-bogota.bankos.io', 'banco-bogota', 'ACTIVE', 'tenant_banco_bogota', 'COP', 50000000.00, 'FIXED', 2500.0000, '#002D72', '#004BB1', 'banco-bogota'),
+        ('${tenantSantanderId}', 'Banco Santander', 'BANCO-SANTANDER', 'banco-santander.bankos.io', 'banco-santander', 'ACTIVE', 'tenant_banco_santander', 'USD', 10000.00, 'PERCENTAGE', 1.5000, '#EC0000', '#CC0000', 'banco-santander'),
+        ('${tenantLombiaId}', 'Bancolombia', 'BANCO-LOMBIA', 'banco-lombia.bankos.io', 'banco-lombia', 'ACTIVE', 'tenant_banco_lombia', 'COP', 50000000.00, 'FIXED', 2500.0000, '#000000', '#FDDA24', 'bancolombia'),
+        ('${tenantNuId}', 'Banco de NU', 'BANCO-NU', 'banco-nu.bankos.io', 'banco-nu', 'ACTIVE', 'tenant_banco_nu', 'COP', 20000000.00, 'FIXED', 0.0000, '#820AD1', '#9B3FE6', 'banco-nu')
       ON CONFLICT (slug) DO UPDATE SET 
         status = 'ACTIVE',
+        code = EXCLUDED.code,
+        subdomain = EXCLUDED.subdomain,
         primary_currency = EXCLUDED.primary_currency,
         max_transaction_amount = EXCLUDED.max_transaction_amount,
         fee_type = EXCLUDED.fee_type,

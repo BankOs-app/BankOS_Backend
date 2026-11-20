@@ -20,6 +20,8 @@ import { TenantResponseDto } from '../dto/tenant-response.dto';
 
 export interface RegisterTenantInput {
   name: string;
+  code?: string;
+  subdomain?: string;
   slug: string;
   primaryCurrency?: Currency;
   maxTransactionAmount?: string;
@@ -60,6 +62,8 @@ export class RegisterTenantUseCase {
     let tenant: Tenant;
     try {
       tenant = Tenant.create(input.name, input.slug, {
+        code: input.code,
+        subdomain: input.subdomain,
         primaryCurrency: input.primaryCurrency,
         maxTransactionAmount: input.maxTransactionAmount,
         feeType: input.feeType,
@@ -71,7 +75,21 @@ export class RegisterTenantUseCase {
     }
 
     // 3. Persistir inicialmente con estado PROVISIONING
-    await this.tenantRepository.save(tenant);
+    try {
+      await this.tenantRepository.save(tenant);
+    } catch (error: unknown) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code?: string }).code === '23505'
+      ) {
+        throw new ConflictException(
+          'El código o subdominio ya está registrado por otra institución.',
+        );
+      }
+      throw error;
+    }
     this.logger.log(
       `Tenant creado con ID ${tenant.getId()} en estado PROVISIONING. Iniciando esquema ${tenant.getSchemaName()}`,
     );

@@ -7,6 +7,8 @@ import { FeeType } from '../value-objects/fee-type.enum';
 export interface TenantProps {
   id: string;
   name: string;
+  code: string;
+  subdomain: string;
   slug: TenantSlug;
   schemaName: string;
   status: TenantStatus;
@@ -31,6 +33,8 @@ export interface TenantProps {
 export class Tenant {
   private readonly id: string;
   private name: string;
+  private readonly code: string;
+  private readonly subdomain: string;
   private readonly slug: TenantSlug;
   private readonly schemaName: string;
   private status: TenantStatus;
@@ -48,6 +52,16 @@ export class Tenant {
     this.validateName(props.name);
     this.id = props.id;
     this.name = props.name.trim();
+    const code = props.code.trim().toUpperCase();
+    if (!/^[A-Z0-9]+(?:[-_][A-Z0-9]+)*$/.test(code) || code.length > 50) {
+      throw new Error('El código de la entidad tiene un formato inválido');
+    }
+    const subdomain = props.subdomain.trim().toLowerCase();
+    if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.bankos\.io$/.test(subdomain)) {
+      throw new Error('El subdominio debe tener el formato nombre.bankos.io');
+    }
+    this.code = code;
+    this.subdomain = subdomain;
     this.slug = props.slug;
     this.schemaName = props.schemaName;
     this.status = props.status;
@@ -69,6 +83,8 @@ export class Tenant {
     name: string,
     rawSlug: string,
     settings?: {
+      code?: string;
+      subdomain?: string;
       primaryCurrency?: Currency;
       maxTransactionAmount?: string;
       feeType?: FeeType;
@@ -89,6 +105,8 @@ export class Tenant {
     return new Tenant({
       id,
       name,
+      code: settings?.code ?? rawSlug.toUpperCase(),
+      subdomain: settings?.subdomain ?? `${rawSlug.toLowerCase()}.bankos.io`,
       slug: slugVo,
       schemaName: safeSchemaName,
       status: TenantStatus.PROVISIONING,
@@ -110,6 +128,8 @@ export class Tenant {
   public static reconstitute(props: {
     id: string;
     name: string;
+    code?: string;
+    subdomain?: string;
     slug: string;
     schemaName: string;
     status: TenantStatus;
@@ -126,6 +146,8 @@ export class Tenant {
     return new Tenant({
       id: props.id,
       name: props.name,
+      code: props.code ?? props.slug.toUpperCase(),
+      subdomain: props.subdomain ?? `${props.slug.toLowerCase()}.bankos.io`,
       slug: new TenantSlug(props.slug),
       schemaName: props.schemaName,
       status: props.status,
@@ -205,6 +227,14 @@ export class Tenant {
 
   public getName(): string {
     return this.name;
+  }
+
+  public getCode(): string {
+    return this.code;
+  }
+
+  public getSubdomain(): string {
+    return this.subdomain;
   }
 
   public getSlug(): TenantSlug {

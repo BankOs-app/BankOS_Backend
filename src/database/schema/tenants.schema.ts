@@ -10,6 +10,8 @@ import { pgTable, uuid, varchar, timestamp, numeric } from 'drizzle-orm/pg-core'
 export const tenantsTable = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 100 }).notNull(),
+  code: varchar('code', { length: 50 }).notNull().unique(),
+  subdomain: varchar('subdomain', { length: 253 }).notNull().unique(),
   slug: varchar('slug', { length: 50 }).notNull().unique(),
   schemaName: varchar('schema_name', { length: 63 }).notNull().unique(),
   status: varchar('status', { length: 20 }).notNull().default('PROVISIONING'),

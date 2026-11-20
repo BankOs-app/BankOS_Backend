@@ -41,6 +41,8 @@ describe('TenantsController', () => {
     const mockResponse: TenantResponseDto = {
       id: 'uuid-1234',
       name: 'Banco Prueba',
+      code: 'BANCO-PRUEBA',
+      subdomain: 'banco-prueba.bankos.io',
       slug: 'banco-prueba',
       schemaName: 'tenant_banco_prueba',
       status: TenantStatus.ACTIVE,
@@ -65,6 +67,8 @@ describe('TenantsController', () => {
 
     expect(registerTenantUseCase.execute).toHaveBeenCalledWith({
       name: 'Banco Prueba',
+      code: 'BANCO-PRUEBA',
+      subdomain: 'banco-prueba.bankos.io',
       slug: 'banco-prueba',
       primaryCurrency: 'COP',
       maxTransactionAmount: '50000000.00',
@@ -78,6 +82,8 @@ describe('TenantsController', () => {
     const mockResponse: TenantResponseDto = {
       id: 'uuid-1234',
       name: 'Banco Prueba',
+      code: 'BANCO-PRUEBA',
+      subdomain: 'banco-prueba.bankos.io',
       slug: 'banco-prueba',
       schemaName: 'tenant_banco_prueba',
       status: TenantStatus.ACTIVE,

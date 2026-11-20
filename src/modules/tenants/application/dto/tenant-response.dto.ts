@@ -7,6 +7,8 @@ import { TenantStatus } from '../../domain/value-objects/tenant-status.enum';
 export class TenantResponseDto {
   id: string;
   name: string;
+  code: string;
+  subdomain: string;
   slug: string;
   schemaName: string;
   status: TenantStatus;
@@ -27,6 +29,8 @@ export class TenantResponseDto {
     const dto = new TenantResponseDto();
     dto.id = tenant.getId();
     dto.name = tenant.getName();
+    dto.code = tenant.getCode();
+    dto.subdomain = tenant.getSubdomain();
     dto.slug = tenant.getSlug().getValue();
     dto.schemaName = tenant.getSchemaName();
     dto.status = tenant.getStatus();

@@ -56,6 +56,8 @@ export class TenantsController {
   ): Promise<TenantResponseDto> {
     return this.registerTenantUseCase.execute({
       name: dto.name,
+      code: dto.code ?? dto.slug.toUpperCase(),
+      subdomain: dto.subdomain ?? `${dto.slug}.bankos.io`,
       slug: dto.slug,
       primaryCurrency: dto.primaryCurrency,
       maxTransactionAmount: dto.maxTransactionAmount,
