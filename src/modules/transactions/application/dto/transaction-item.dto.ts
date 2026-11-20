@@ -43,6 +43,34 @@ export class TransactionItemDto {
   destinationTenantId?: string;
 
   @ApiProperty({
+    description: 'Número de cuenta de origen (si aplica)',
+    required: false,
+    example: '7007007001',
+  })
+  sourceAccountNumber?: string;
+
+  @ApiProperty({
+    description: 'Número de cuenta de destino (si aplica)',
+    required: false,
+    example: '8008008001',
+  })
+  destinationAccountNumber?: string;
+
+  @ApiProperty({
+    description: 'Nombre de la institución bancaria de origen (si aplica)',
+    required: false,
+    example: 'Bancolombia',
+  })
+  sourceBankName?: string;
+
+  @ApiProperty({
+    description: 'Nombre de la institución bancaria de destino (si aplica)',
+    required: false,
+    example: 'Banco de NU',
+  })
+  destinationBankName?: string;
+
+  @ApiProperty({
     description: 'Monto original de la operación en moneda de origen',
     example: '100.00',
   })

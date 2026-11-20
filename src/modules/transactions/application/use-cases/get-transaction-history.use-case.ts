@@ -115,33 +115,78 @@ export class GetTransactionHistoryUseCase {
       limit: input.limit,
     });
 
-    // 4. Mapear entidades a DTOs con flags visuales (CA-HU-11-04)
-    const items: TransactionItemDto[] = paginated.data.map((tx) => {
-      const feeVal = Number(tx.getFeeAmount() ?? 0);
-      const isCrossCurrency = Boolean(
-        tx.getDestinationCurrency() &&
-          tx.getOriginalCurrency() !== tx.getDestinationCurrency(),
-      );
+    // 4. Mapear entidades a DTOs con flags visuales e información institucional enriquecida (CA-HU-11-04)
+    const allTenants = await this.tenantRepository.findAll().catch(() => []);
+    const tenantNameMap = new Map<string, string>();
+    for (const t of allTenants) {
+      tenantNameMap.set(t.getId(), t.getName());
+      const slugVal =
+        typeof t.getSlug() === 'object' && 'getValue' in t.getSlug()
+          ? (t.getSlug() as any).getValue()
+          : String(t.getSlug());
+      tenantNameMap.set(slugVal, t.getName());
+    }
 
-      const dto = new TransactionItemDto();
-      dto.id = tx.getId();
-      dto.type = tx.getType();
-      dto.sourceAccountId = tx.getSourceAccountId();
-      dto.destinationAccountId = tx.getDestinationAccountId();
-      dto.sourceTenantId = tx.getSourceTenantId();
-      dto.destinationTenantId = tx.getDestinationTenantId();
-      dto.originalAmount = tx.getOriginalAmount();
-      dto.originalCurrency = tx.getOriginalCurrency();
-      dto.convertedAmount = tx.getConvertedAmount();
-      dto.destinationCurrency = tx.getDestinationCurrency();
-      dto.exchangeRateApplied = tx.getExchangeRateApplied();
-      dto.feeAmount = tx.getFeeAmount();
-      dto.hasFee = feeVal > 0;
-      dto.hasConversion = isCrossCurrency;
-      dto.status = tx.getStatus();
-      dto.createdAt = tx.getCreatedAt().toISOString();
-      return dto;
-    });
+    const items: TransactionItemDto[] = await Promise.all(
+      paginated.data.map(async (tx) => {
+        const feeVal = Number(tx.getFeeAmount() ?? 0);
+        const isCrossCurrency = Boolean(
+          tx.getDestinationCurrency() &&
+            tx.getOriginalCurrency() !== tx.getDestinationCurrency(),
+        );
+
+        const dto = new TransactionItemDto();
+        dto.id = tx.getId();
+        dto.type = tx.getType();
+        dto.sourceAccountId = tx.getSourceAccountId();
+        dto.destinationAccountId = tx.getDestinationAccountId();
+        dto.sourceTenantId = tx.getSourceTenantId();
+        dto.destinationTenantId = tx.getDestinationTenantId();
+
+        dto.sourceBankName = dto.sourceTenantId
+          ? (tenantNameMap.get(dto.sourceTenantId) ?? dto.sourceTenantId)
+          : undefined;
+        dto.destinationBankName = dto.destinationTenantId
+          ? (tenantNameMap.get(dto.destinationTenantId) ?? dto.destinationTenantId)
+          : undefined;
+
+        if (dto.sourceAccountId) {
+          try {
+            const srcAcc = await this.accountRepository.findById(
+              dto.sourceAccountId,
+              dto.sourceTenantId,
+            );
+            if (srcAcc) {
+              dto.sourceAccountNumber = srcAcc.getAccountNumber();
+            }
+          } catch (_) {}
+        }
+
+        if (dto.destinationAccountId) {
+          try {
+            const dstAcc = await this.accountRepository.findById(
+              dto.destinationAccountId,
+              dto.destinationTenantId,
+            );
+            if (dstAcc) {
+              dto.destinationAccountNumber = dstAcc.getAccountNumber();
+            }
+          } catch (_) {}
+        }
+
+        dto.originalAmount = tx.getOriginalAmount();
+        dto.originalCurrency = tx.getOriginalCurrency();
+        dto.convertedAmount = tx.getConvertedAmount();
+        dto.destinationCurrency = tx.getDestinationCurrency();
+        dto.exchangeRateApplied = tx.getExchangeRateApplied();
+        dto.feeAmount = tx.getFeeAmount();
+        dto.hasFee = feeVal > 0;
+        dto.hasConversion = isCrossCurrency;
+        dto.status = tx.getStatus();
+        dto.createdAt = tx.getCreatedAt().toISOString();
+        return dto;
+      }),
+    );
 
     const totalPages = Math.ceil(paginated.total / paginated.limit);
 
