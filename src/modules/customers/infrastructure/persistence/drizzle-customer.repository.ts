@@ -31,13 +31,43 @@ export class DrizzleCustomerRepository implements CustomerRepository {
     });
 
     // Auto-aprovisionar cuenta bancaria inicial activa con saldo 0.00 para el cliente registrado
-    const randomSuffix = Math.floor(10000000 + Math.random() * 90000000);
+    // Garantiza que el número de cuenta sea estrictamente único a nivel global entre todas las instituciones
+    const schemas = await this.schemaResolver.getAllActiveSchemas();
     const prefix = info.schemaName.includes('bogota')
       ? '10'
       : (info.schemaName.includes('santander')
           ? '90'
-          : (info.schemaName.includes('nu') ? '80' : '70'));
-    const accountNumber = `${prefix}${randomSuffix}`;
+          : (info.schemaName.includes('nu')
+              ? '80'
+              : (info.schemaName.includes('occidente') ? '50' : '70')));
+
+    let accountNumber = '';
+    let isUnique = false;
+    let attempts = 0;
+
+    while (!isUnique && attempts < 15) {
+      attempts++;
+      const randomSuffix = Math.floor(10000000 + Math.random() * 90000000);
+      accountNumber = `${prefix}${randomSuffix}`;
+
+      let found = false;
+      for (const s of schemas) {
+        const t = getTenantTables(s.schemaName);
+        const rows = await this.db
+          .select({ acc: t.accountsTable.accountNumber })
+          .from(t.accountsTable)
+          .where(eq(t.accountsTable.accountNumber, accountNumber))
+          .limit(1);
+        if (rows.length > 0) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        isUnique = true;
+      }
+    }
+
     const tenantCurrency = info.schemaName.includes('santander') ? 'USD' : 'COP';
 
     await this.db.insert(tables.accountsTable).values({

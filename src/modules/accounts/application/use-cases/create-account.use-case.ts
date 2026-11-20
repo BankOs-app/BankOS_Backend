@@ -68,23 +68,39 @@ export class CreateAccountUseCase {
       );
     }
 
-    // 4. Generar o validar número de cuenta único
-    const accountNumber =
-      input.accountNumber?.trim() || this.generateAccountNumber();
-
-    // Los números de cuenta se identifican globalmente entre instituciones.
-    const existingAccountMatches = this.accountRepository.findByNumberAcrossTenants
-      ? await this.accountRepository.findByNumberAcrossTenants(accountNumber)
-      : [];
-    const existingAccounts = this.accountRepository.findByNumberAcrossTenants
-      ? existingAccountMatches
-      : [await this.accountRepository.findByNumber(tenantId, accountNumber)].filter(
-          (account) => account !== null,
+    // 4. Generar o validar número de cuenta único globalmente
+    let accountNumber = input.accountNumber?.trim() || '';
+    if (!accountNumber) {
+      let isUnique = false;
+      let attempts = 0;
+      while (!isUnique && attempts < 15) {
+        attempts++;
+        accountNumber = this.generateAccountNumber(String(tenant.getSlug()));
+        const matches = this.accountRepository.findByNumberAcrossTenants
+          ? await this.accountRepository.findByNumberAcrossTenants(accountNumber)
+          : [];
+        if (matches.length === 0) {
+          isUnique = true;
+        }
+      }
+      if (!accountNumber) {
+        accountNumber = this.generateAccountNumber(String(tenant.getSlug()));
+      }
+    } else {
+      // Los números de cuenta se identifican globalmente entre instituciones.
+      const existingAccountMatches = this.accountRepository.findByNumberAcrossTenants
+        ? await this.accountRepository.findByNumberAcrossTenants(accountNumber)
+        : [];
+      const existingAccounts = this.accountRepository.findByNumberAcrossTenants
+        ? existingAccountMatches
+        : [await this.accountRepository.findByNumber(tenantId, accountNumber)].filter(
+            (account) => account !== null,
+          );
+      if (existingAccounts.length > 0) {
+        throw new ConflictException(
+          `El número de cuenta '${accountNumber}' ya está asignado a otra cuenta bancaria. Los números de cuenta deben ser estrictamente únicos.`,
         );
-    if (existingAccounts.length > 0) {
-      throw new ConflictException(
-        `El número de cuenta '${accountNumber}' ya está asignado a una cuenta bancaria.`,
-      );
+      }
     }
 
     // 6. Instanciar y validar la entidad Account
@@ -109,11 +125,19 @@ export class CreateAccountUseCase {
   }
 
   /**
-   * Genera un número de cuenta único aleatorio de 10 dígitos.
+   * Genera un número de cuenta único aleatorio de 10 dígitos según el banco.
    */
-  private generateAccountNumber(): string {
+  private generateAccountNumber(slug?: string): string {
+    const s = (slug ?? '').toLowerCase();
+    const prefix = s.includes('bogota')
+      ? '10'
+      : (s.includes('santander')
+          ? '90'
+          : (s.includes('nu')
+              ? '80'
+              : (s.includes('occidente') ? '50' : '70')));
     const randomSuffix = Math.floor(10000000 + Math.random() * 90000000);
-    return `10${randomSuffix}`;
+    return `${prefix}${randomSuffix}`;
   }
 }
 
