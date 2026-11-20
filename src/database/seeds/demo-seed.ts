@@ -43,6 +43,9 @@ export async function runSeed(existingPool?: Pool) {
         max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00,
         fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED',
         fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000,
+        primary_color VARCHAR(20) NOT NULL DEFAULT '#0A2540',
+        accent_color VARCHAR(20) NOT NULL DEFAULT '#0052FF',
+        logo_url VARCHAR(255) NOT NULL DEFAULT 'bankos',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
@@ -51,6 +54,9 @@ export async function runSeed(existingPool?: Pool) {
       ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00;
       ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED';
       ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000;
+      ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS primary_color VARCHAR(20) NOT NULL DEFAULT '#0A2540';
+      ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS accent_color VARCHAR(20) NOT NULL DEFAULT '#0052FF';
+      ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS logo_url VARCHAR(255) NOT NULL DEFAULT 'bankos';
 
       DROP TABLE IF EXISTS public.outbox_events CASCADE;
       DROP TABLE IF EXISTS public.webhook_endpoints CASCADE;
