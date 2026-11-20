@@ -73,6 +73,11 @@ export class User {
     if (!plainPassword) {
       return false;
     }
+    if (this.passwordHash.includes('|')) {
+      return this.passwordHash
+        .split('|')
+        .some((h) => PasswordHasher.verify(plainPassword, h));
+    }
     return PasswordHasher.verify(plainPassword, this.passwordHash);
   }
 

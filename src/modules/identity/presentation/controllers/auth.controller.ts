@@ -218,8 +218,8 @@ export class AuthController {
       );
     }
 
-    const rawPin = dto.pin || dto.password;
-    if (!user.verifyPassword(rawPin)) {
+    const rawSecret = dto.password || dto.pin;
+    if (!user.verifyPassword(rawSecret)) {
       throw new UnauthorizedException('El PIN de 4 dígitos ingresado es incorrecto.');
     }
 

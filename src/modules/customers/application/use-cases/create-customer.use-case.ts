@@ -87,18 +87,28 @@ export class CreateCustomerUseCase {
       );
     }
 
-    // 3. Crear entidad User con su PIN seguro de exactamente 4 dígitos
-    const rawPin = input.pin || input.password || '1234';
-    if (!/^\d{4}$/.test(rawPin)) {
+    // 3. Crear entidad User con su contraseña y PIN transaccional
+    const password = input.password?.trim();
+    const pin = input.pin?.trim();
+
+    if (pin && !/^\d{4}$/.test(pin)) {
       throw new BadRequestException(
         'El PIN de seguridad debe contener exactamente 4 dígitos numéricos.',
       );
     }
+
+    let passwordHash: string;
+    if (password && pin && password !== pin) {
+      passwordHash = `${PasswordHasher.hash(password)}|${PasswordHasher.hash(pin)}`;
+    } else {
+      passwordHash = PasswordHasher.hash(password || pin || '1234');
+    }
+
     const user = User.create({
       tenantId,
       email: input.email,
       role: UserRole.CUSTOMER,
-      passwordHash: PasswordHasher.hash(rawPin),
+      passwordHash,
     });
 
     // 4. Crear entidad Customer vinculada

@@ -57,7 +57,7 @@ export class CreateCustomerRequestDto {
 
   @ApiPropertyOptional({
     example: '1234',
-    description: 'PIN de acceso de exactamente 4 dígitos numéricos para la App Móvil',
+    description: 'PIN transaccional de exactamente 4 dígitos numéricos para la App Móvil',
   })
   @IsOptional()
   @IsString()
@@ -65,12 +65,11 @@ export class CreateCustomerRequestDto {
   pin?: string;
 
   @ApiPropertyOptional({
-    example: '1234',
-    description: 'Alias del PIN de 4 dígitos',
+    example: 'ClaveSegura123',
+    description: 'Contraseña o clave de acceso alfanumérica para la App Móvil / Web',
   })
   @IsOptional()
   @IsString()
-  @Matches(/^\d{4}$/, { message: 'El PIN debe contener exactamente 4 dígitos numéricos (ej. 1234).' })
   password?: string;
 }
 

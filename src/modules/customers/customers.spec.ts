@@ -92,6 +92,29 @@ describe('Customers & User Management (HU-04)', () => {
       expect(savedUser.verifyPassword('0000')).toBe(false);
     });
 
+    it('debe permitir autenticar tanto con la contraseña como con el PIN transaccional', async () => {
+      const useCase = new CreateCustomerUseCase(
+        tenantRepo,
+        userRepo,
+        customerRepo,
+      );
+
+      await useCase.execute({
+        tenantSlug: 'banco-bogota',
+        fullName: 'Laura Gómez',
+        documentNumber: '1122334455',
+        email: 'laura@email.com',
+        password: 'ClaveSegura123',
+        pin: '4321',
+      });
+
+      expect(userRepo.save).toHaveBeenCalledTimes(1);
+      const savedUser = (userRepo.save as jest.Mock).mock.calls[0][0];
+      expect(savedUser.verifyPassword('ClaveSegura123')).toBe(true);
+      expect(savedUser.verifyPassword('4321')).toBe(true);
+      expect(savedUser.verifyPassword('wrong')).toBe(false);
+    });
+
     it('debe rechazar el registro con BadRequestException si el PIN no tiene exactamente 4 dígitos numéricos', async () => {
       const useCase = new CreateCustomerUseCase(
         tenantRepo,
