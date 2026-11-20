@@ -1,185 +1,221 @@
-# BankOS — Backend Core Bancario Multitenant como Servicio (SaaS)
+# BankOS - Backend Core Banking API
 
-Plataforma bancaria empresarial construida sobre **NestJS**, **TypeScript (Strict Mode)**, **Drizzle ORM** y **PostgreSQL 16**, diseñada bajo principios de **Clean Architecture**, aislamiento estricto por institución (**Database-per-Tenant / Schema-per-Tenant**) y resiliencia financiera (**Idempotencia UUID v4**, **Libro Mayor / Ledger** y **Transactional Outbox**).
+Backend de core bancario multitenant desarrollado con NestJS, TypeScript, Drizzle ORM y PostgreSQL. La plataforma implementa arquitectura limpia (Clean Architecture) con aislamiento logico por esquema de base de datos (Schema-per-Tenant), trazabilidad mediante libro mayor (Ledger), control de idempotencia y publicacion de eventos transaccionales con patron Outbox.
 
 ---
 
-## 🏛️ Arquitectura del Sistema (Clean Architecture)
+## Arquitectura del Proyecto
 
-El código fuente respeta la regla de dependencias unidireccional: la capa de **Dominio** no posee dependencias de frameworks ni librerías de infraestructura.
+El sistema sigue los principios de Clean Architecture y diseno guiado por el dominio (DDD). La logica de negocio y las entidades se encuentran desacopladas de frameworks y librerias externas de persistencia o transporte.
 
 ```text
 src/
-├── app.controller.ts            # Health check raíz
-├── app.module.ts                # Orquestación de módulos y middlewares globales
-├── database/                    # Adaptadores de PostgreSQL y Esquemas Drizzle
+├── app.controller.ts            # Verificacion de estado del servicio (health check)
+├── app.module.ts                # Modulo raiz y configuracion de middlewares
+├── main.ts                      # Punto de entrada, pipes globales, Swagger y CORS
+├── common/                      # Filtros de excepcion, guards y decoradores compartidos
+├── database/                    # Conexion a PostgreSQL y definicion de esquemas
 │   ├── database.module.ts
-│   ├── schema/                  # Definición de tablas relacionales Drizzle
-│   └── seeds/                   # Semillas de demostración reproducible
-└── modules/                     # Módulos de Dominio y Aplicación
-    ├── tenants/                 # Alta y aprovisionamiento dinámico de esquemas (HU-01, HU-02)
-    ├── identity/                # Autenticación OIDC, validación JWT y RBAC (HU-03)
-    ├── customers/               # Fichas de clientes y usuarios vinculados (HU-04)
-    ├── accounts/                # Administración de cuentas y Soft Delete (HU-05)
-    ├── transactions/            # Depósitos, retiros y transferencias multimoneda (HU-07, HU-08, HU-09, HU-11)
-    ├── ledger/                  # Libro mayor contable / asientos de partida doble (Ledger)
-    ├── idempotency/             # Trazabilidad X-Correlation-ID y control de Idempotency-Key (HU-10)
-    ├── audit/                   # Registro inmutable de acciones administrativas append-only (HU-14)
-    └── webhooks/                # Notificaciones asíncronas seguras con Outbox Pattern (HU-15)
+│   ├── tenant-schema-resolver.service.ts
+│   ├── schema/                  # Definicion de tablas Drizzle ORM
+│   └── seeds/                   # Inicializacion y aprovisionamiento de esquemas
+└── modules/
+    ├── tenants/                 # Registro y aprovisionamiento dinamico de bancos
+    ├── identity/                # Autenticacion, emision y validacion de tokens JWT
+    ├── customers/               # Fichas de clientes y vinculacion a usuarios
+    ├── accounts/                # Creacion, consulta y administracion de cuentas bancarias
+    ├── transactions/            # Depositos, retiros y transferencias multidivisa
+    ├── ledger/                  # Libro mayor contable con asientos de partida doble
+    ├── idempotency/             # Registro y validacion de Idempotency-Key (UUID v4)
+    ├── audit/                   # Registro inmutable de acciones administrativas
+    └── webhooks/                # Despacho asincrono de notificaciones via Outbox
 ```
 
 ---
 
-## 📋 Requisitos Previos
+## Requisitos del Sistema
 
-- **Node.js**: Versión `20.19+` o `22.12+` para ejecutar la API. Para correr las pruebas Jest de NestJS 12, use Node.js `24.9+` (el CI usa la línea 24).
-- **npm**: Gestor de paquetes oficial.
-- **Docker & Docker Compose**: Para orquestar PostgreSQL 16, Redis 7 y Keycloak 24.
-- **Git**.
-
-Verificar entorno:
-```bash
-node --version
-npm --version
-docker --version
-docker compose version
-```
+- Node.js version 20.19+ o 22.12+ (para ejecucion en produccion/desarrollo) o Node.js 24+ (para ejecucion de suites de pruebas Jest).
+- npm version 10+.
+- PostgreSQL version 16+.
+- Redis version 7+ (utilizado para colas de mensajeria con BullMQ).
+- Docker y Docker Compose (opcional, para ejecucion contenerizada de base de datos y cache).
 
 ---
 
-## 🚀 Puesta en Marcha (Instalación Rápida)
+## Variables de Entorno
 
-### 1. Clonar el repositorio
-```bash
-git clone <URL_DEL_REPOSITORIO>
-cd BankOS_Backend
-```
+Cree un archivo `.env` en la raiz del proyecto tomando como referencia el archivo `.env.example`:
 
-### 2. Configurar variables de entorno
-Copie la plantilla de variables preconfigurada para desarrollo:
 ```bash
 cp .env.example .env
 ```
 
-### 3. Instalar dependencias exactas
+| Variable | Descripcion | Valor por defecto |
+|---|---|---|
+| `PORT` | Puerto de escucha del servidor HTTP | `3000` |
+| `NODE_ENV` | Entorno de ejecucion (`development`, `production`, `test`) | `development` |
+| `DATABASE_URL` | Cadena de conexion completa a PostgreSQL | `postgres://postgres:postgres@localhost:5432/bankos_db` |
+| `DB_HOST` | Host del servidor PostgreSQL | `localhost` |
+| `DB_PORT` | Puerto de conexion a PostgreSQL | `5432` |
+| `DB_USER` | Usuario de PostgreSQL | `postgres` |
+| `DB_PASSWORD` | Contrasena del usuario de PostgreSQL | `postgres` |
+| `DB_NAME` | Nombre de la base de datos | `bankos_db` |
+| `REDIS_HOST` | Host del servidor Redis | `localhost` |
+| `REDIS_PORT` | Puerto de conexion a Redis | `6379` |
+| `JWT_SECRET` | Clave secreta para firma y verificacion de tokens JWT | Clave segura para entorno local |
+| `JWT_EXPIRATION` | Tiempo de expiracion de los tokens generados | `3600s` |
+| `AUTO_SEED` | Ejecuta inicializacion automatica de esquemas si la base de datos esta vacia | `true` |
+
+---
+
+## Instalacion y Puesta en Marcha
+
+### 1. Instalacion de dependencias
+
 ```bash
 npm ci
 ```
 
-### 4. Iniciar infraestructura con Docker Compose
-Inicia PostgreSQL 16, Redis 7 y Keycloak 24 en segundo plano con comprobaciones de estado saludables:
+### 2. Inicio de servicios de base de datos y Redis
+
+Si utiliza Docker Compose:
 ```bash
-docker compose up postgres redis keycloak -d
+docker compose up postgres redis -d
 ```
 
-*(Opcional: Si desea ejecutar toda la solución incluyendo el backend compilado dentro de Docker)*:
-```bash
-docker compose up --build
-```
+Si utiliza PostgreSQL y Redis locales, asegurese de que ambos servicios esten iniciados y que la base de datos `bankos_db` se encuentre creada.
 
-### 5. Sembrar Datos de Prueba (Seed Oficial)
-Ejecute el script de inicialización para aprovisionar los esquemas de PostgreSQL y sembrar instituciones, clientes, cuentas con saldo y tasas de cambio:
+### 3. Aprovisionamiento de base de datos (Seed inicial)
+
+Ejecute el script de aprovisionamiento para inicializar el catalogo central de instituciones financieras en `public.tenants` y crear los esquemas aislados de cada banco con sus 11 tablas relacionales:
+
 ```bash
 npm run seed
 ```
 
-### 6. Iniciar el servidor en modo desarrollo
+### 4. Compilacion y arranque del servidor
+
+Modo desarrollo con recarga automatica:
 ```bash
 npm run start:dev
 ```
-La API estará disponible en `http://localhost:3000`.
 
----
-
-## 📖 Documentación OpenAPI / Swagger
-
-BankOS publica su especificación OpenAPI interactiva y documentada en:
-👉 **`http://localhost:3000/api/docs`**
-
-- Incluye autenticación Bearer JWT.
-- Documenta encabezados obligatorios: `Idempotency-Key` (UUID) y `X-Correlation-ID`.
-- Versionamiento en URL bajo el prefijo `/api/v1/...`.
-
----
-
-## 🧪 Pruebas Automatizadas y Calidad
-
-El proyecto cuenta con **89 pruebas unitarias y de integración** asociadas estrictamente a los Criterios de Aceptación (Gherkin / Given-When-Then) del Backlog Técnico:
-
+Compilacion y ejecucion en modo produccion:
 ```bash
-# Ejecutar todas las suites de pruebas unitarias
-npm test
-
-# Ejecutar pruebas e2e
-npm run test:e2e
-
-# Análisis estático de código ultra-rápido (Oxlint)
-npm run lint
-
-# Compilación estricta TypeScript (Zero-Warnings)
 npm run build
+npm run start:prod
+```
+
+La API quedara disponible en `http://localhost:3000`.
+
+---
+
+## Modelo Multitenant (Schema-per-Tenant)
+
+El sistema implementa separacion de datos a nivel de esquema en PostgreSQL para cumplir con normativas de seguridad y privacidad financiera:
+
+1. **Catalogo central (`public.tenants`):**
+   Almacena las instituciones registradas, su slug unico, estado de aprovisionamiento y parametros operativos (moneda base, comisiones por transaccion y limites por operacion).
+
+2. **Esquema aislado por institucion (`tenant_<slug>`):**
+   Al registrar un nuevo banco via `POST /api/v1/tenants`, el sistema crea de forma automatica su esquema fisico en PostgreSQL y aprovisiona las tablas correspondientes:
+   - `users`: Credenciales, rol y estado del usuario.
+   - `customers`: Informacion personal y documento de identidad del cliente.
+   - `accounts`: Cuentas bancarias multimoneda asociadas al cliente.
+   - `transactions`: Registro de depositos, retiros y transferencias.
+   - `ledger_entries`: Asientos contables inmutables de partida doble.
+   - `tenant_settings`: Parametros financieros especificos del banco.
+   - `tenant_exchange_rates`: Tasas de cambio entre divisas (COP, USD, EUR).
+   - `idempotency_records`: Registro de llaves de idempotencia y respuestas cacheadas.
+   - `audit_logs`: Trazabilidad inmutable de acciones administrativas.
+   - `webhook_endpoints`: Endpoints suscritos a eventos del banco.
+   - `outbox_events`: Eventos pendientes de envio asincrono.
+
+---
+
+## Autenticacion y Encabezados Requeridos
+
+### Autenticacion
+Las rutas protegidas requieren un encabezado de autorizacion HTTP:
+```text
+Authorization: Bearer <token_jwt>
+```
+El token se obtiene mediante el endpoint `POST /api/v1/identity/login`.
+
+### Idempotencia Financiera
+Las operaciones de deposito, retiro y transferencia requieren obligatoriamente el envio de una llave de idempotencia en los encabezados HTTP:
+```text
+Idempotency-Key: <UUID_v4>
+```
+Si una peticion con la misma llave y mismo cuerpo se reenvia (por reintento de red), el servidor responde con la transaccion original sin duplicar cargos ni abonos. Si se reenvia la misma llave con datos distintos, el sistema retorna un error `409 Conflict`.
+
+### Trazabilidad de Logs
+Opcionalmente se puede incluir un identificador de correlacion para rastreo en logs:
+```text
+X-Correlation-ID: <UUID_v4>
 ```
 
 ---
 
-## 🎬 Guion de Demostración Oficial (HU-16)
+## Datos Iniciales de Prueba en Entorno Local
 
-Para facilitar la evaluación de los jueces, se incluye una colección lista para importar en Postman o Thunder Client:
-📁 [`docs/BankOS_Demo_Postman_Collection.json`](file:///c:/Users/coder/Desktop/BankOS_Backend/docs/BankOS_Demo_Postman_Collection.json)
+El script de seed configura las siguientes instituciones y cuentas iniciales:
 
-### Datos Sembrados para la Demo:
-- **Tenant 1: Banco de Bogotá (`slug: banco-bogota`)**
-  - Moneda principal: `COP`. Límite: $50,000,000 COP. Comisión fija: $2,500 COP.
-  - Tasa: `1 USD = 4,000 COP`.
-  - Cliente Carlos Gómez (`carlos@bogota.com`):
-    - Cuenta COP `1001001001` (Saldo inicial: **$5,000,000 COP**).
-    - Cuenta USD `1001001002` (Saldo inicial: **$1,500 USD**).
-  - Cliente María Rodríguez (`maria@bogota.com`):
-    - Cuenta COP `2002002001` (Saldo inicial: **$250,000 COP**).
-- **Tenant 2: Banco Santander (`slug: banco-santander`)**
-  - Moneda principal: `USD`. Comisión porcentual: 1.5%.
-  - Cliente John Smith (`john@santander.com`):
-    - Cuenta USD `9009009001` (Saldo inicial: **$3,500 USD**).
+- **Bancolombia (slug: `banco-lombia`):**
+  - Moneda principal: COP.
+  - Administrador: `admin@bancolombia.com` / PIN: `1234`.
+  - Administrador de plataforma: `admin@bankos.com` / PIN: `1234`.
+  - Cliente: `cliente@bancolombia.com` / PIN: `1234`.
+  - Cuenta de prueba: `7007007001` (COP).
 
----
+- **Banco de Bogota (slug: `banco-bogota`):**
+  - Moneda principal: COP.
+  - Administrador: `admin@bogota.com` / PIN: `1234`.
+  - Cliente: `carlos@bogota.com` / PIN: `1234`.
+  - Cuentas de prueba: `1001001001` (COP), `1001001002` (USD).
 
-### Escenario 1: Aislamiento Multitenant Estricto (CA-HU-16-03)
-1. **Acceso legítimo**: Carlos Gómez autenticado consulta su cuenta en Bogotá:
-   - `GET /api/v1/tenants/banco-bogota/accounts/1001001001`
-   - **Resultado**: `200 OK`, saldo $5,000,000 COP.
-2. **Intento de acceso cruzado**: Carlos Gómez intenta consultar la cuenta de John Smith en Santander:
-   - `GET /api/v1/tenants/banco-santander/accounts/9009009001`
-   - **Resultado**: `403 Forbidden` (`TenantMatchGuard`). Ninguna institución puede conocer ni consultar datos ajenos.
+- **Banco Santander (slug: `banco-santander`):**
+  - Moneda principal: USD.
+  - Administrador: `admin@santander.com` / PIN: `1234`.
+  - Cliente: `john@santander.com` / PIN: `1234`.
+  - Cuenta de prueba: `9009009001` (USD).
 
----
-
-### Escenario 2: Resiliencia e Idempotencia Absoluta (CA-HU-16-04)
-1. **Primer envío**: Carlos realiza un abono a su cuenta:
-   - `POST /api/v1/tenants/banco-bogota/transactions/deposits`
-   - Encabezado: `Idempotency-Key: a1b2c3d4-e5f6-47a8-b9c0-d1e2f3a4b5c6` <!-- gitleaks:allow -->
-   - Cuerpo: `{"accountNumber": "1001001001", "amount": "150000.00"}`
-   - **Resultado**: `201 Created`. Saldo aumenta a $5,150,000 COP.
-2. **Reintento transparente**: Simulación de reintento por pérdida momentánea de conectividad usando exactamente el mismo `Idempotency-Key`:
-   - `POST /api/v1/tenants/banco-bogota/transactions/deposits` (Mismos headers y body).
-   - **Resultado**: `201 Created` inmediato. El backend retorna la respuesta cacheada sin ejecutar un segundo abono. El saldo permanece en $5,150,000 COP.
-3. **Detección de alteración**: Reutilizar el mismo `Idempotency-Key` con un monto modificado responde `409 Conflict`.
+- **Banco de NU (slug: `banco-nu`):**
+  - Moneda principal: COP.
+  - Administrador: `admin@nu.com` / PIN: `1234`.
+  - Cliente: `cliente@nu.com` / PIN: `1234`.
+  - Cuenta de prueba: `8008008001` (COP).
 
 ---
 
-### Escenario 3: Transferencia Multimoneda con Tasas y Comisión (CA-HU-16-05)
-1. **Previsualización en tiempo real**: Carlos desea transferir desde su cuenta en **USD** (`1001001002`) para que María reciba **$400,000 COP** en su cuenta (`2002002001`):
-   - `POST /api/v1/tenants/banco-bogota/transactions/preview`
-   - Cuerpo: `{"sourceAccountNumber": "1001001002", "destinationAccountNumber": "2002002001", "targetAmount": "400000.00"}`
-   - **Resultado `200 OK`**:
-     - Tasa aplicada: `4000.000000` (1 USD = 4,000 COP).
-     - Equivalente en origen: `100.00 USD`.
-     - Comisión fija: `2500.00 COP` (o equivalente en origen).
-     - Total a debitar exacto sin afectar saldos.
-2. **Confirmación y Ejecución Atómica**:
-   - `POST /api/v1/tenants/banco-bogota/transactions/transfers`
-   - Encabezado: `Idempotency-Key: f47ac10b-58cc-4372-a567-0e02b2c3d479` <!-- gitleaks:allow -->
-   - **Resultado `201 Created`**:
-     - Se debita la cuenta origen en USD.
-     - Se acredita la cuenta destino en COP.
-     - Se generan los asientos de débito y crédito en el **Ledger**.
-     - Se genera automáticamente el evento en **Transactional Outbox** para notificar al webhook suscrito.
+## Documentacion OpenAPI (Swagger)
+
+Una vez iniciado el servidor, la documentacion interactiva de endpoints y esquemas se encuentra disponible en:
+
+```text
+http://localhost:3000/api/docs
+```
+
+La especificacion en formato JSON puede consultarse en:
+```text
+http://localhost:3000/api/docs-json
+```
+
+---
+
+## Pruebas Automatizadas
+
+```bash
+# Ejecutar todas las pruebas unitarias y de integracion
+npm test
+
+# Ejecutar pruebas end-to-end
+npm run test:e2e
+
+# Analisis estatico de codigo
+npm run lint
+
+# Verificacion de compilacion TypeScript
+npm run build
+```

@@ -167,6 +167,17 @@ export class PostgresSchemaProvisionerAdapter implements SchemaProvisioner {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+
+        -- Crear usuario administrador inicial para el nuevo tenant con PIN 1234
+        INSERT INTO "${schemaName}".users (id, email, role, status, password_hash)
+        VALUES (
+          gen_random_uuid(),
+          'admin@' || replace(replace('${schemaName}', 'tenant_', ''), '_', '-') || '.com',
+          'admin',
+          'ACTIVE',
+          '97c15e36e320ebe7d2c237ef28a14585:d80a4103423df626565e725c3961463d1cbe0de99ae4c76ab2fbd1bfa91b9ed5fd196c5dd734c0521f8da2cde713a18dae1da6298b94b2ea286fecb8c9386de2'
+        )
+        ON CONFLICT (email) DO NOTHING;
       `);
 
       // 4. Confirmar transacción

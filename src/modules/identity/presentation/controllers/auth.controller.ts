@@ -33,6 +33,11 @@ import { TENANT_REPOSITORY } from '../../../tenants/application/ports/tenant.rep
 import type { TenantRepository } from '../../../tenants/application/ports/tenant.repository.port';
 import { USER_REPOSITORY } from '../../application/ports/user.repository.port';
 import type { UserRepository } from '../../application/ports/user.repository.port';
+import { DRIZZLE } from '../../../../database/database.module';
+import type { DrizzleDb } from '../../../../database/database.module';
+import { TenantSchemaResolver } from '../../../../database/tenant-schema-resolver.service';
+import { getTenantTables } from '../../../../database/schema/tenant-tables.factory';
+import { eq } from 'drizzle-orm';
 
 export class LoginRequestDto {
   @ApiPropertyOptional({
@@ -132,7 +137,7 @@ export class IssueDevTokenDto {
 }
 
 @ApiTags('Identidad y Acceso (HU-03)')
-@Controller('identity')
+@Controller(['identity', 'auth'])
 export class AuthController {
   constructor(
     private readonly tokenService: JwtTokenService,
@@ -142,6 +147,11 @@ export class AuthController {
     @Optional()
     @Inject(USER_REPOSITORY)
     private readonly userRepository?: UserRepository,
+    @Optional()
+    @Inject(DRIZZLE)
+    private readonly db?: DrizzleDb,
+    @Optional()
+    private readonly schemaResolver?: TenantSchemaResolver,
   ) {}
 
   @Public()
@@ -160,11 +170,13 @@ export class AuthController {
       throw new BadRequestException('Servicio de repositorios no disponible.');
     }
 
+    const email = dto.email.trim().toLowerCase();
     const tenantIdentifier =
       dto.tenant?.trim() ||
       dto.tenantName?.trim() ||
       dto.tenantSlug?.trim() ||
       dto.tenantId?.trim();
+
     if (!tenantIdentifier) {
       throw new BadRequestException(
         'El identificador del banco (tenantSlug) es obligatorio para iniciar sesión.',
@@ -193,7 +205,6 @@ export class AuthController {
       );
     }
 
-    const email = dto.email.trim().toLowerCase();
     const user = await this.userRepository.findByEmail(tenant.getId(), email);
     if (!user) {
       throw new UnauthorizedException(
@@ -217,12 +228,38 @@ export class AuthController {
         ? tenant.getSlug().getValue()
         : String(tenant.getSlug());
 
+    // Obtener nombre completo del cliente o nombre de administrador
+    let fullName: string | undefined;
+    if (this.db && this.schemaResolver) {
+      try {
+        const info = await this.schemaResolver.resolve(tenant.getId());
+        const tables = getTenantTables(info.schemaName);
+        const rows = await this.db
+          .select({ fullName: tables.customersTable.fullName })
+          .from(tables.customersTable)
+          .where(eq(tables.customersTable.userId, user.getId()))
+          .limit(1);
+        if (rows.length > 0 && rows[0].fullName) {
+          fullName = rows[0].fullName;
+        }
+      } catch (_) {}
+    }
+    if (!fullName) {
+      if (user.getRole() === UserRole.ADMIN) {
+        fullName = email.includes('bankos') ? 'Luigui Garizado' : `Administrador ${tenant.getName()}`;
+      } else {
+        const localPart = email.split('@')[0];
+        fullName = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+      }
+    }
+
     const token = this.tokenService.generateToken({
       userId: user.getId(),
       tenantId: tenant.getId(),
       tenantSlug: tenantSlug,
       email: user.getEmail(),
       role: user.getRole(),
+      fullName: fullName,
     });
 
     return {
@@ -236,6 +273,7 @@ export class AuthController {
         tenantName: tenant.getName(),
         email: user.getEmail(),
         role: user.getRole(),
+        fullName: fullName,
       },
     };
   }
@@ -308,6 +346,7 @@ export class AuthController {
       tenantSlug: user.tenantSlug,
       email: user.email,
       role: user.role,
+      fullName: user.fullName || (user.role === UserRole.ADMIN ? (user.email?.includes('bankos') ? 'Luigui Garizado' : 'Administrador') : user.email?.split('@')[0]),
     };
   }
 }

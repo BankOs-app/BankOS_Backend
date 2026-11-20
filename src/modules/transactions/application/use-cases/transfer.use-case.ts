@@ -27,6 +27,8 @@ import { LedgerEntry } from '../../../ledger/domain/entities/ledger-entry.entity
 import { LedgerEntryType } from '../../domain/value-objects/transaction-types.enum';
 import { FeeType } from '../../../tenants/domain/value-objects/fee-type.enum';
 import { TransferResponseDto } from '../dto/transfer-response.dto';
+import { RecordAuditLogUseCase } from '../../../audit/application/use-cases/record-audit-log.use-case';
+import { AuditAction } from '../../../audit/domain/value-objects/audit-action.enum';
 
 export interface TransferInput {
   tenantSlug: string;
@@ -68,6 +70,8 @@ export class TransferUseCase {
     private readonly outboxRepository?: OutboxRepository,
     @Optional()
     private readonly outboxDispatcherService?: OutboxDispatcherService,
+    @Optional()
+    private readonly recordAuditLogUseCase?: RecordAuditLogUseCase,
   ) {}
 
   async execute(input: TransferInput): Promise<TransferResponseDto> {

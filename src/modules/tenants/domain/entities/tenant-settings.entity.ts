@@ -9,6 +9,9 @@ export interface TenantSettingsProps {
   maxTransactionAmount: string;
   feeType: FeeType;
   feeValue: string;
+  primaryColor?: string;
+  accentColor?: string;
+  logoUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +30,9 @@ export class TenantSettings {
   private maxTransactionAmount: string;
   private feeType: FeeType;
   private feeValue: string;
+  private primaryColor: string;
+  private accentColor: string;
+  private logoUrl: string;
   private readonly createdAt: Date;
   private updatedAt: Date;
 
@@ -38,6 +44,9 @@ export class TenantSettings {
     this.maxTransactionAmount = props.maxTransactionAmount;
     this.feeType = props.feeType;
     this.feeValue = props.feeValue;
+    this.primaryColor = props.primaryColor ?? '#0A2540';
+    this.accentColor = props.accentColor ?? '#0052FF';
+    this.logoUrl = props.logoUrl ?? 'bankos';
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
@@ -48,6 +57,9 @@ export class TenantSettings {
     maxTransactionAmount?: string;
     feeType?: FeeType;
     feeValue?: string;
+    primaryColor?: string;
+    accentColor?: string;
+    logoUrl?: string;
     id?: string;
   }): TenantSettings {
     const now = new Date();
@@ -58,6 +70,9 @@ export class TenantSettings {
       maxTransactionAmount: params.maxTransactionAmount ?? '50000000.00',
       feeType: params.feeType ?? FeeType.FIXED,
       feeValue: params.feeValue ?? '0.00',
+      primaryColor: params.primaryColor ?? '#0A2540',
+      accentColor: params.accentColor ?? '#0052FF',
+      logoUrl: params.logoUrl ?? 'bankos',
       createdAt: now,
       updatedAt: now,
     });
@@ -86,6 +101,9 @@ export class TenantSettings {
     maxTransactionAmount: string;
     feeType: FeeType;
     feeValue: string;
+    primaryColor?: string;
+    accentColor?: string;
+    logoUrl?: string;
   }): void {
     this.validate({
       id: this.id,
@@ -99,6 +117,9 @@ export class TenantSettings {
     this.maxTransactionAmount = params.maxTransactionAmount;
     this.feeType = params.feeType;
     this.feeValue = params.feeValue;
+    if (params.primaryColor) this.primaryColor = params.primaryColor;
+    if (params.accentColor) this.accentColor = params.accentColor;
+    if (params.logoUrl) this.logoUrl = params.logoUrl;
     this.updatedAt = new Date();
   }
 
@@ -155,6 +176,18 @@ export class TenantSettings {
 
   public getFeeValue(): string {
     return this.feeValue;
+  }
+
+  public getPrimaryColor(): string {
+    return this.primaryColor;
+  }
+
+  public getAccentColor(): string {
+    return this.accentColor;
+  }
+
+  public getLogoUrl(): string {
+    return this.logoUrl;
   }
 
   public getCreatedAt(): Date {

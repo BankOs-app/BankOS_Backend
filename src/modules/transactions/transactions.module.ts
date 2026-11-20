@@ -4,6 +4,7 @@ import { TenantsModule } from '../tenants/tenants.module';
 import { AccountsModule } from '../accounts/accounts.module';
 import { LedgerModule } from '../ledger/ledger.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
+import { AuditModule } from '../audit/audit.module';
 import { TRANSACTION_REPOSITORY } from './application/ports/transaction.repository.port';
 import { DrizzleTransactionRepository } from './infrastructure/persistence/drizzle-transaction.repository';
 import { DepositUseCase } from './application/use-cases/deposit.use-case';
@@ -24,6 +25,7 @@ import { TransactionsController } from './presentation/controllers/transactions.
     AccountsModule,
     LedgerModule,
     WebhooksModule,
+    AuditModule,
   ],
   controllers: [TransactionsController],
   providers: [

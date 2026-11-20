@@ -9,6 +9,9 @@ export class TenantSettingsResponseDto {
   maxTransactionAmount: string;
   feeType: FeeType;
   feeValue: string;
+  primaryColor: string;
+  accentColor: string;
+  logoUrl: string;
   createdAt: string;
   updatedAt: string;
 
@@ -20,6 +23,9 @@ export class TenantSettingsResponseDto {
     dto.maxTransactionAmount = settings.getMaxTransactionAmount();
     dto.feeType = settings.getFeeType();
     dto.feeValue = settings.getFeeValue();
+    dto.primaryColor = settings.getPrimaryColor();
+    dto.accentColor = settings.getAccentColor();
+    dto.logoUrl = settings.getLogoUrl();
     dto.createdAt = settings.getCreatedAt().toISOString();
     dto.updatedAt = settings.getUpdatedAt().toISOString();
     return dto;

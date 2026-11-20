@@ -15,6 +15,7 @@ export interface JwtPayload {
   tenant_slug: string;
   email: string;
   role: string;
+  full_name?: string;
   iss?: string;
   aud?: string;
   exp?: number;
@@ -49,6 +50,7 @@ export class JwtTokenService {
     tenantSlug: string;
     email: string;
     role: UserRole;
+    fullName?: string;
     expiresInSeconds?: number;
   }): string {
     const now = Math.floor(Date.now() / 1000);
@@ -62,6 +64,7 @@ export class JwtTokenService {
       tenant_slug: payload.tenantSlug,
       email: payload.email,
       role: payload.role,
+      full_name: payload.fullName,
       iss: this.configService.get<string>('KEYCLOAK_ISSUER') ?? 'http://localhost:8080/realms/bankos',
       aud: this.configService.get<string>('KEYCLOAK_AUDIENCE') ?? 'bankos-api',
       iat: now,
@@ -128,6 +131,7 @@ export class JwtTokenService {
       payload.tenant_slug ?? '',
       payload.email ?? '',
       role,
+      payload.full_name,
     );
   }
 

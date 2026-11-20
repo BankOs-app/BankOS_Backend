@@ -22,6 +22,8 @@ import { Transaction } from '../../domain/entities/transaction.entity';
 import { LedgerEntry } from '../../../ledger/domain/entities/ledger-entry.entity';
 import { LedgerEntryType } from '../../domain/value-objects/transaction-types.enum';
 import { WithdrawResponseDto } from '../dto/withdraw-response.dto';
+import { RecordAuditLogUseCase } from '../../../audit/application/use-cases/record-audit-log.use-case';
+import { AuditAction } from '../../../audit/domain/value-objects/audit-action.enum';
 
 export interface WithdrawInput {
   tenantSlug: string;
@@ -60,6 +62,8 @@ export class WithdrawUseCase {
     @Optional()
     @Inject(EXCHANGE_RATE_REPOSITORY)
     private readonly exchangeRateRepository?: ExchangeRateRepository,
+    @Optional()
+    private readonly recordAuditLogUseCase?: RecordAuditLogUseCase,
   ) {}
 
   async execute(input: WithdrawInput): Promise<WithdrawResponseDto> {
@@ -172,6 +176,26 @@ export class WithdrawUseCase {
     await this.accountRepository.update(account);
     await this.transactionRepository.save(transaction);
     await this.ledgerRepository.save(ledgerEntry);
+
+    if (this.recordAuditLogUseCase) {
+      await this.recordAuditLogUseCase
+        .execute({
+          tenantId: tenant.getId(),
+          actorId: input.accountNumber,
+          action: AuditAction.TRANSACTION_WITHDRAWAL,
+          resource: 'transactions',
+          resourceId: transaction.getId(),
+          previousValues: undefined,
+          newValues: {
+            amount: input.amount,
+            currency: account.getCurrency(),
+            accountNumber: account.getAccountNumber(),
+            newBalance: account.getBalance(),
+          },
+          correlationId: input.idempotencyKey,
+        })
+        .catch(() => {});
+    }
 
     // 11. Devolver respuesta estandarizada
     const response = new WithdrawResponseDto();

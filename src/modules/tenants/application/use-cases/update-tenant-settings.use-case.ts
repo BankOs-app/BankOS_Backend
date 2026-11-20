@@ -22,6 +22,9 @@ export interface UpdateTenantSettingsInput {
   maxTransactionAmount: string;
   feeType: FeeType;
   feeValue: string;
+  primaryColor?: string;
+  accentColor?: string;
+  logoUrl?: string;
   actorId?: string;
   correlationId?: string;
 }
@@ -68,6 +71,9 @@ export class UpdateTenantSettingsUseCase {
       maxTransactionAmount: settings.getMaxTransactionAmount(),
       feeType: settings.getFeeType(),
       feeValue: settings.getFeeValue(),
+      primaryColor: settings.getPrimaryColor(),
+      accentColor: settings.getAccentColor(),
+      logoUrl: settings.getLogoUrl(),
     };
 
     try {
@@ -76,6 +82,9 @@ export class UpdateTenantSettingsUseCase {
         maxTransactionAmount: input.maxTransactionAmount,
         feeType: input.feeType,
         feeValue: input.feeValue,
+        primaryColor: input.primaryColor,
+        accentColor: input.accentColor,
+        logoUrl: input.logoUrl,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Parámetros inválidos';
@@ -83,6 +92,18 @@ export class UpdateTenantSettingsUseCase {
     }
 
     await this.settingsRepository.update(settings);
+
+    // Actualizar también la tabla central de tenants para reflejar cambios de marca
+    tenant.updateFinancialSettings(
+      settings.getPrimaryCurrency(),
+      settings.getMaxTransactionAmount(),
+      settings.getFeeType(),
+      settings.getFeeValue(),
+    );
+    if (input.primaryColor || input.accentColor || input.logoUrl) {
+      tenant.updateBranding(input.primaryColor, input.accentColor, input.logoUrl);
+    }
+    await this.tenantRepository.update(tenant);
 
     if (this.recordAuditLogUseCase) {
       await this.recordAuditLogUseCase
@@ -98,6 +119,9 @@ export class UpdateTenantSettingsUseCase {
             maxTransactionAmount: settings.getMaxTransactionAmount(),
             feeType: settings.getFeeType(),
             feeValue: settings.getFeeValue(),
+            primaryColor: settings.getPrimaryColor(),
+            accentColor: settings.getAccentColor(),
+            logoUrl: settings.getLogoUrl(),
           },
           correlationId: input.correlationId,
         })
