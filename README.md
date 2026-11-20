@@ -1,221 +1,137 @@
-# BankOS - Backend Core Banking API
+# BankOS Backend
 
-Backend de core bancario multitenant desarrollado con NestJS, TypeScript, Drizzle ORM y PostgreSQL. La plataforma implementa arquitectura limpia (Clean Architecture) con aislamiento logico por esquema de base de datos (Schema-per-Tenant), trazabilidad mediante libro mayor (Ledger), control de idempotencia y publicacion de eventos transaccionales con patron Outbox.
+API de core bancario multitenant desarrollada con NestJS, TypeScript, Drizzle ORM y PostgreSQL. Provee autenticación, administración de instituciones, clientes, cuentas, transacciones, libro mayor, auditoría y notificaciones webhook. Cada banco opera en un esquema PostgreSQL propio.
 
----
+## Requisitos
 
-## Arquitectura del Proyecto
+- Git.
+- Node.js `20.19+` o `22.12+` y npm `10+`.
+- PostgreSQL `16+` y Redis `7+`, instalados localmente o ejecutados con Docker Compose.
+- Docker Desktop en Windows o Docker Engine y Docker Compose en macOS/Linux, si se desea usar contenedores.
 
-El sistema sigue los principios de Clean Architecture y diseno guiado por el dominio (DDD). La logica de negocio y las entidades se encuentran desacopladas de frameworks y librerias externas de persistencia o transporte.
+Verifica las herramientas:
+
+```sh
+node --version
+npm --version
+docker compose version
+```
+
+## Clonar el repositorio
+
+Los mismos comandos funcionan en PowerShell, Terminal de macOS y Linux:
+
+```sh
+git clone https://github.com/BankOs-app/BankOS_Backend.git
+cd BankOS_Backend
+```
+
+## Ejecutar con Docker Compose
+
+Desde la raíz del repositorio, inicia PostgreSQL, Redis y la API:
+
+```sh
+docker compose up --build -d
+```
+
+La API queda disponible en `http://localhost:3000`; PostgreSQL usa el puerto `5432` y Redis el `6379`. Para revisar los registros de la API:
+
+```sh
+docker compose logs -f backend
+```
+
+Para detener los servicios sin borrar los datos:
+
+```sh
+docker compose down
+```
+
+## Ejecutar la API localmente
+
+1. Instala las dependencias:
+
+   ```sh
+   npm ci
+   ```
+
+2. Crea `.env` desde la plantilla. En PowerShell:
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+   En macOS o Linux:
+
+   ```sh
+   cp .env.example .env
+   ```
+
+3. Inicia PostgreSQL y Redis. Para usar los contenedores incluidos sin iniciar el backend de Compose:
+
+   ```sh
+   docker compose up -d postgres redis
+   ```
+
+4. Inicia la API en modo desarrollo:
+
+   ```sh
+   npm run start:dev
+   ```
+
+La configuración de `.env.example` apunta a los servicios locales en los puertos predeterminados. Con `AUTO_SEED` activo (valor predeterminado), el backend prepara los datos de demostración al iniciar. Para cargar los datos de forma manual, ejecuta `npm run seed`.
+
+## Configuración
+
+Las variables principales están documentadas en `.env.example`:
+
+| Variable | Uso | Valor local predeterminado |
+|---|---|---|
+| `PORT` | Puerto HTTP de la API | `3000` |
+| `DATABASE_URL` | Conexión PostgreSQL | `postgres://postgres:postgres@localhost:5432/bankos_db` |
+| `REDIS_HOST` / `REDIS_PORT` | Conexión Redis | `localhost:6379` |
+| `JWT_SECRET` | Firma de tokens locales | Definido en `.env.example` |
+| `JWT_EXPIRATION` | Vigencia del token | `3600s` |
+| `AUTO_SEED` | Carga de datos de demostración al iniciar | Activo si no se establece `false` |
+
+Usa secretos propios y cambia las credenciales predeterminadas antes de exponer cualquier entorno fuera de tu equipo.
+
+## Estructura del proyecto
 
 ```text
 src/
-├── app.controller.ts            # Verificacion de estado del servicio (health check)
-├── app.module.ts                # Modulo raiz y configuracion de middlewares
-├── main.ts                      # Punto de entrada, pipes globales, Swagger y CORS
-├── common/                      # Filtros de excepcion, guards y decoradores compartidos
-├── database/                    # Conexion a PostgreSQL y definicion de esquemas
-│   ├── database.module.ts
-│   ├── tenant-schema-resolver.service.ts
-│   ├── schema/                  # Definicion de tablas Drizzle ORM
-│   └── seeds/                   # Inicializacion y aprovisionamiento de esquemas
-└── modules/
-    ├── tenants/                 # Registro y aprovisionamiento dinamico de bancos
-    ├── identity/                # Autenticacion, emision y validacion de tokens JWT
-    ├── customers/               # Fichas de clientes y vinculacion a usuarios
-    ├── accounts/                # Creacion, consulta y administracion de cuentas bancarias
-    ├── transactions/            # Depositos, retiros y transferencias multidivisa
-    ├── ledger/                  # Libro mayor contable con asientos de partida doble
-    ├── idempotency/             # Registro y validacion de Idempotency-Key (UUID v4)
-    ├── audit/                   # Registro inmutable de acciones administrativas
-    └── webhooks/                # Despacho asincrono de notificaciones via Outbox
+├── common/       Filtros, guards y utilidades compartidas
+├── database/     Conexión, esquemas Drizzle, resolución de tenants y seed
+└── modules/      Módulos de negocio organizados por funcionalidad
+    ├── identity/       Autenticación y autorización
+    ├── tenants/        Instituciones y configuración financiera
+    ├── customers/      Datos de clientes
+    ├── accounts/       Cuentas bancarias
+    ├── transactions/   Depósitos, retiros, transferencias e historial
+    ├── ledger/         Libro mayor
+    ├── idempotency/    Protección contra operaciones duplicadas
+    ├── audit/          Auditoría
+    └── webhooks/       Endpoints y eventos de salida
+test/            Pruebas de integración
+docs/            Guías funcionales y colección Postman
 ```
 
----
+Los módulos separan `domain` (reglas y entidades), `application` (casos de uso), `infrastructure` (persistencia e integraciones) y `presentation` (controladores y DTOs).
 
-## Requisitos del Sistema
+## API y autenticación
 
-- Node.js version 20.19+ o 22.12+ (para ejecucion en produccion/desarrollo) o Node.js 24+ (para ejecucion de suites de pruebas Jest).
-- npm version 10+.
-- PostgreSQL version 16+.
-- Redis version 7+ (utilizado para colas de mensajeria con BullMQ).
-- Docker y Docker Compose (opcional, para ejecucion contenerizada de base de datos y cache).
+Con la API iniciada, la documentación interactiva está en `http://localhost:3000/api/docs`. Las rutas protegidas usan `Authorization: Bearer <token>`. Las operaciones financieras requieren el encabezado `Idempotency-Key` con un UUID v4.
 
----
+El seed local incluye usuarios de demostración con PIN `1234` para cada banco. Úsalos solo en desarrollo local.
 
-## Variables de Entorno
+## Verificación
 
-Cree un archivo `.env` en la raiz del proyecto tomando como referencia el archivo `.env.example`:
-
-```bash
-cp .env.example .env
-```
-
-| Variable | Descripcion | Valor por defecto |
-|---|---|---|
-| `PORT` | Puerto de escucha del servidor HTTP | `3000` |
-| `NODE_ENV` | Entorno de ejecucion (`development`, `production`, `test`) | `development` |
-| `DATABASE_URL` | Cadena de conexion completa a PostgreSQL | `postgres://postgres:postgres@localhost:5432/bankos_db` |
-| `DB_HOST` | Host del servidor PostgreSQL | `localhost` |
-| `DB_PORT` | Puerto de conexion a PostgreSQL | `5432` |
-| `DB_USER` | Usuario de PostgreSQL | `postgres` |
-| `DB_PASSWORD` | Contrasena del usuario de PostgreSQL | `postgres` |
-| `DB_NAME` | Nombre de la base de datos | `bankos_db` |
-| `REDIS_HOST` | Host del servidor Redis | `localhost` |
-| `REDIS_PORT` | Puerto de conexion a Redis | `6379` |
-| `JWT_SECRET` | Clave secreta para firma y verificacion de tokens JWT | Clave segura para entorno local |
-| `JWT_EXPIRATION` | Tiempo de expiracion de los tokens generados | `3600s` |
-| `AUTO_SEED` | Ejecuta inicializacion automatica de esquemas si la base de datos esta vacia | `true` |
-
----
-
-## Instalacion y Puesta en Marcha
-
-### 1. Instalacion de dependencias
-
-```bash
-npm ci
-```
-
-### 2. Inicio de servicios de base de datos y Redis
-
-Si utiliza Docker Compose:
-```bash
-docker compose up postgres redis -d
-```
-
-Si utiliza PostgreSQL y Redis locales, asegurese de que ambos servicios esten iniciados y que la base de datos `bankos_db` se encuentre creada.
-
-### 3. Aprovisionamiento de base de datos (Seed inicial)
-
-Ejecute el script de aprovisionamiento para inicializar el catalogo central de instituciones financieras en `public.tenants` y crear los esquemas aislados de cada banco con sus 11 tablas relacionales:
-
-```bash
-npm run seed
-```
-
-### 4. Compilacion y arranque del servidor
-
-Modo desarrollo con recarga automatica:
-```bash
-npm run start:dev
-```
-
-Compilacion y ejecucion en modo produccion:
-```bash
+```sh
 npm run build
-npm run start:prod
-```
-
-La API quedara disponible en `http://localhost:3000`.
-
----
-
-## Modelo Multitenant (Schema-per-Tenant)
-
-El sistema implementa separacion de datos a nivel de esquema en PostgreSQL para cumplir con normativas de seguridad y privacidad financiera:
-
-1. **Catalogo central (`public.tenants`):**
-   Almacena las instituciones registradas, su slug unico, estado de aprovisionamiento y parametros operativos (moneda base, comisiones por transaccion y limites por operacion).
-
-2. **Esquema aislado por institucion (`tenant_<slug>`):**
-   Al registrar un nuevo banco via `POST /api/v1/tenants`, el sistema crea de forma automatica su esquema fisico en PostgreSQL y aprovisiona las tablas correspondientes:
-   - `users`: Credenciales, rol y estado del usuario.
-   - `customers`: Informacion personal y documento de identidad del cliente.
-   - `accounts`: Cuentas bancarias multimoneda asociadas al cliente.
-   - `transactions`: Registro de depositos, retiros y transferencias.
-   - `ledger_entries`: Asientos contables inmutables de partida doble.
-   - `tenant_settings`: Parametros financieros especificos del banco.
-   - `tenant_exchange_rates`: Tasas de cambio entre divisas (COP, USD, EUR).
-   - `idempotency_records`: Registro de llaves de idempotencia y respuestas cacheadas.
-   - `audit_logs`: Trazabilidad inmutable de acciones administrativas.
-   - `webhook_endpoints`: Endpoints suscritos a eventos del banco.
-   - `outbox_events`: Eventos pendientes de envio asincrono.
-
----
-
-## Autenticacion y Encabezados Requeridos
-
-### Autenticacion
-Las rutas protegidas requieren un encabezado de autorizacion HTTP:
-```text
-Authorization: Bearer <token_jwt>
-```
-El token se obtiene mediante el endpoint `POST /api/v1/identity/login`.
-
-### Idempotencia Financiera
-Las operaciones de deposito, retiro y transferencia requieren obligatoriamente el envio de una llave de idempotencia en los encabezados HTTP:
-```text
-Idempotency-Key: <UUID_v4>
-```
-Si una peticion con la misma llave y mismo cuerpo se reenvia (por reintento de red), el servidor responde con la transaccion original sin duplicar cargos ni abonos. Si se reenvia la misma llave con datos distintos, el sistema retorna un error `409 Conflict`.
-
-### Trazabilidad de Logs
-Opcionalmente se puede incluir un identificador de correlacion para rastreo en logs:
-```text
-X-Correlation-ID: <UUID_v4>
-```
-
----
-
-## Datos Iniciales de Prueba en Entorno Local
-
-El script de seed configura las siguientes instituciones y cuentas iniciales:
-
-- **Bancolombia (slug: `banco-lombia`):**
-  - Moneda principal: COP.
-  - Administrador: `admin@bancolombia.com` / PIN: `1234`.
-  - Administrador de plataforma: `admin@bankos.com` / PIN: `1234`.
-  - Cliente: `cliente@bancolombia.com` / PIN: `1234`.
-  - Cuenta de prueba: `7007007001` (COP).
-
-- **Banco de Bogota (slug: `banco-bogota`):**
-  - Moneda principal: COP.
-  - Administrador: `admin@bogota.com` / PIN: `1234`.
-  - Cliente: `carlos@bogota.com` / PIN: `1234`.
-  - Cuentas de prueba: `1001001001` (COP), `1001001002` (USD).
-
-- **Banco Santander (slug: `banco-santander`):**
-  - Moneda principal: USD.
-  - Administrador: `admin@santander.com` / PIN: `1234`.
-  - Cliente: `john@santander.com` / PIN: `1234`.
-  - Cuenta de prueba: `9009009001` (USD).
-
-- **Banco de NU (slug: `banco-nu`):**
-  - Moneda principal: COP.
-  - Administrador: `admin@nu.com` / PIN: `1234`.
-  - Cliente: `cliente@nu.com` / PIN: `1234`.
-  - Cuenta de prueba: `8008008001` (COP).
-
----
-
-## Documentacion OpenAPI (Swagger)
-
-Una vez iniciado el servidor, la documentacion interactiva de endpoints y esquemas se encuentra disponible en:
-
-```text
-http://localhost:3000/api/docs
-```
-
-La especificacion en formato JSON puede consultarse en:
-```text
-http://localhost:3000/api/docs-json
-```
-
----
-
-## Pruebas Automatizadas
-
-```bash
-# Ejecutar todas las pruebas unitarias y de integracion
-npm test
-
-# Ejecutar pruebas end-to-end
+npm test -- --runInBand
 npm run test:e2e
-
-# Analisis estatico de codigo
 npm run lint
-
-# Verificacion de compilacion TypeScript
-npm run build
 ```
+
+## Repositorio relacionado
+
+La aplicación Flutter está en [BankOS Frontend](https://github.com/BankOs-app/BankOs_Frontend). Para probar la aplicación web, inicia esta API y sigue las instrucciones de su README.

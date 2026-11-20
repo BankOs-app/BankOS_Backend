@@ -1,7 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsNumberString,
   IsString,
   Matches,
@@ -26,6 +27,27 @@ export class CreateTenantRequestDto {
   @MinLength(3, { message: 'El nombre debe tener al menos 3 caracteres' })
   @MaxLength(100, { message: 'El nombre no puede exceder los 100 caracteres' })
   name: string;
+
+  @ApiPropertyOptional({ description: 'Código comercial único de la entidad', example: 'NOVAPAY' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(3)
+  @MaxLength(50)
+  @Matches(/^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/, {
+    message: 'El código solo admite letras, números, guiones y guiones bajos',
+  })
+  code?: string;
+
+  @ApiPropertyOptional({ description: 'Subdominio asignado bajo bankos.io', example: 'novapay.bankos.io' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(253)
+  @Matches(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.bankos\.io$/, {
+    message: 'El subdominio debe tener el formato nombre.bankos.io en minúsculas',
+  })
+  subdomain?: string;
 
   @ApiProperty({
     description:

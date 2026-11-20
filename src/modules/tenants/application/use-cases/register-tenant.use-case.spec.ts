@@ -53,6 +53,8 @@ describe('RegisterTenantUseCase (HU-01)', () => {
 
     expect(result.id).toBeDefined();
     expect(result.slug).toBe('banco-santander');
+    expect(result.code).toBe('BANCO-SANTANDER');
+    expect(result.subdomain).toBe('banco-santander.bankos.io');
     expect(result.schemaName).toBe('tenant_banco_santander');
     expect(result.status).toBe(TenantStatus.ACTIVE);
   });

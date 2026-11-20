@@ -31,6 +31,8 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
         CREATE TABLE IF NOT EXISTS public.tenants (
           id UUID PRIMARY KEY,
           name VARCHAR(100) NOT NULL,
+          code VARCHAR(50),
+          subdomain VARCHAR(253),
           slug VARCHAR(50) NOT NULL UNIQUE,
           schema_name VARCHAR(63) NOT NULL UNIQUE,
           status VARCHAR(20) NOT NULL DEFAULT 'PROVISIONING',
@@ -42,6 +44,14 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS primary_currency VARCHAR(3) NOT NULL DEFAULT 'COP';
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS code VARCHAR(50);
+        ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subdomain VARCHAR(253);
+        UPDATE public.tenants SET code = UPPER(slug) WHERE code IS NULL;
+        UPDATE public.tenants SET subdomain = slug || '.bankos.io' WHERE subdomain IS NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS tenants_code_unique_idx ON public.tenants (code);
+        CREATE UNIQUE INDEX IF NOT EXISTS tenants_subdomain_unique_idx ON public.tenants (subdomain);
+        ALTER TABLE public.tenants ALTER COLUMN code SET NOT NULL;
+        ALTER TABLE public.tenants ALTER COLUMN subdomain SET NOT NULL;
         ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS max_transaction_amount NUMERIC(18, 2) NOT NULL DEFAULT 50000000.00;
         ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_type VARCHAR(20) NOT NULL DEFAULT 'FIXED';
         ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS fee_value NUMERIC(18, 4) NOT NULL DEFAULT 0.0000;
@@ -61,6 +71,8 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
     await this.db.insert(tenantsTable).values({
       id: tenant.getId(),
       name: tenant.getName(),
+      code: tenant.getCode(),
+      subdomain: tenant.getSubdomain(),
       slug: tenant.getSlug().getValue(),
       schemaName: tenant.getSchemaName(),
       status: tenant.getStatus(),
@@ -87,6 +99,8 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
       .update(tenantsTable)
       .set({
         name: tenant.getName(),
+        code: tenant.getCode(),
+        subdomain: tenant.getSubdomain(),
         status: tenant.getStatus(),
         primaryCurrency: tenant.getPrimaryCurrency(),
         maxTransactionAmount: tenant.getMaxTransactionAmount(),
@@ -162,6 +176,8 @@ export class DrizzleTenantRepository implements TenantRepository, OnModuleInit {
     return Tenant.reconstitute({
       id: row.id,
       name: row.name,
+      code: row.code,
+      subdomain: row.subdomain,
       slug: row.slug,
       schemaName: row.schemaName,
       status: row.status as TenantStatus,

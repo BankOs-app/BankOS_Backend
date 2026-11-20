@@ -2,7 +2,6 @@ name: Backend CI - NestJS & TypeScript
 
 on:
   push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
