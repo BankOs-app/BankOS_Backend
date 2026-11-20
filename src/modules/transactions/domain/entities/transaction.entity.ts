@@ -11,6 +11,8 @@ export interface TransactionProps {
   type: TransactionType;
   sourceAccountId?: string;
   destinationAccountId?: string;
+  sourceTenantId?: string;
+  destinationTenantId?: string;
   originalAmount: string;
   originalCurrency: Currency;
   convertedAmount?: string;
@@ -34,6 +36,8 @@ export class Transaction {
   private readonly type: TransactionType;
   private readonly sourceAccountId?: string;
   private readonly destinationAccountId?: string;
+  private readonly sourceTenantId?: string;
+  private readonly destinationTenantId?: string;
   private readonly originalAmount: string;
   private readonly originalCurrency: Currency;
   private readonly convertedAmount?: string;
@@ -50,6 +54,8 @@ export class Transaction {
     this.type = props.type;
     this.sourceAccountId = props.sourceAccountId;
     this.destinationAccountId = props.destinationAccountId;
+    this.sourceTenantId = props.sourceTenantId;
+    this.destinationTenantId = props.destinationTenantId;
     this.originalAmount = props.originalAmount;
     this.originalCurrency = props.originalCurrency;
     this.convertedAmount = props.convertedAmount;
@@ -115,6 +121,8 @@ export class Transaction {
     tenantId: string;
     sourceAccountId: string;
     destinationAccountId: string;
+    sourceTenantId?: string;
+    destinationTenantId?: string;
     originalAmount: string;
     originalCurrency: Currency;
     convertedAmount?: string;
@@ -134,6 +142,8 @@ export class Transaction {
       type: TransactionType.TRANSFER,
       sourceAccountId: params.sourceAccountId,
       destinationAccountId: params.destinationAccountId,
+      sourceTenantId: params.sourceTenantId ?? params.tenantId,
+      destinationTenantId: params.destinationTenantId ?? params.tenantId,
       originalAmount: params.originalAmount,
       originalCurrency: params.originalCurrency,
       convertedAmount: params.convertedAmount,
@@ -169,6 +179,14 @@ export class Transaction {
 
   public getDestinationAccountId(): string | undefined {
     return this.destinationAccountId;
+  }
+
+  public getSourceTenantId(): string | undefined {
+    return this.sourceTenantId;
+  }
+
+  public getDestinationTenantId(): string | undefined {
+    return this.destinationTenantId;
   }
 
   public getOriginalAmount(): string {

@@ -3,6 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { GlobalHttpExceptionFilter } from './common/filters/global-exception.filter';
+import { PG_POOL } from './database/database.module';
+import type { Pool } from 'pg';
 
 /**
  * Punto de entrada principal de la aplicación NestJS (BankOS Core Banking).
@@ -19,6 +21,7 @@ import { GlobalHttpExceptionFilter } from './common/filters/global-exception.fil
 async function bootstrap() {
   // Crea la aplicación NestJS utilizando el módulo raíz AppModule
   const app = await NestFactory.create(AppModule);
+
 
   // Habilita Cross-Origin Resource Sharing (CORS) para que aplicaciones web de otros dominios puedan consumir la API
   app.enableCors();
@@ -80,6 +83,10 @@ async function bootstrap() {
       console.warn('[Bootstrap] Auto-seed omitido o error no fatal:', err);
     }
   }
+
+  // Aplicar la evolución aditiva también cuando el auto-seed está desactivado.
+  const { migrateCrossTenantTransferSchema } = await import('./database/seeds/demo-seed.js');
+  await migrateCrossTenantTransferSchema(app.get<Pool>(PG_POOL));
 
   // Obtiene el puerto desde las variables de entorno (.env) o usa el 3000 por defecto
   const port = process.env.PORT ?? 3000;

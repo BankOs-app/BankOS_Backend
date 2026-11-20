@@ -93,6 +93,22 @@ export class DrizzleAccountRepository implements AccountRepository {
     return this.mapToDomain(rows[0], info.tenantId);
   }
 
+  async findByNumberAcrossTenants(accountNumber: string): Promise<Account[]> {
+    const schemas = await this.schemaResolver.getAllActiveSchemas();
+    const matches: Account[] = [];
+    for (const schema of schemas) {
+      const tables = getTenantTables(schema.schemaName);
+      const rows = await this.db
+        .select()
+        .from(tables.accountsTable)
+        .where(eq(tables.accountsTable.accountNumber, accountNumber.trim()))
+        .limit(2);
+      matches.push(...rows.map((row) => this.mapToDomain(row, schema.tenantId)));
+      if (matches.length > 1) return matches;
+    }
+    return matches;
+  }
+
   async listByCustomer(customerId: string, tenantId?: string): Promise<Account[]> {
     if (tenantId) {
       const info = await this.schemaResolver.resolve(tenantId);

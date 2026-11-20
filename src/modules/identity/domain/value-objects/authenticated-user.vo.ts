@@ -17,7 +17,7 @@ export class AuthenticatedUser {
   ) {}
 
   public isAdmin(): boolean {
-    return this.role === UserRole.ADMIN;
+    return this.role === UserRole.ADMIN || this.role === UserRole.SUPER_ADMIN;
   }
 
   public isCustomer(): boolean {

@@ -70,10 +70,9 @@ export function createTenantTables(schemaName: string) {
       () => accountsTable.id,
       { onDelete: 'set null' },
     ),
-    destinationAccountId: uuid('destination_account_id').references(
-      () => accountsTable.id,
-      { onDelete: 'cascade' },
-    ),
+    destinationAccountId: uuid('destination_account_id'),
+    sourceTenantId: varchar('source_tenant_id', { length: 100 }),
+    destinationTenantId: varchar('destination_tenant_id', { length: 100 }),
     originalAmount: numeric('original_amount', {
       precision: 18,
       scale: 2,

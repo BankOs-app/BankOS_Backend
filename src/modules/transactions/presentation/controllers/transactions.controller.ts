@@ -236,6 +236,7 @@ export class TransactionsController {
       sourceAccountNumber: dto.sourceAccountNumber,
       destinationAccountNumber: dto.destinationAccountNumber,
       targetAmount: dto.targetAmount,
+      sourceAmount: dto.sourceAmount,
       idempotencyKey,
       userId: user?.role === UserRole.CUSTOMER ? user.userId : undefined,
     });

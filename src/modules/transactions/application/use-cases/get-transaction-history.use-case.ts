@@ -128,6 +128,8 @@ export class GetTransactionHistoryUseCase {
       dto.type = tx.getType();
       dto.sourceAccountId = tx.getSourceAccountId();
       dto.destinationAccountId = tx.getDestinationAccountId();
+      dto.sourceTenantId = tx.getSourceTenantId();
+      dto.destinationTenantId = tx.getDestinationTenantId();
       dto.originalAmount = tx.getOriginalAmount();
       dto.originalCurrency = tx.getOriginalCurrency();
       dto.convertedAmount = tx.getConvertedAmount();

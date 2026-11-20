@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumberString, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumberString, IsOptional, IsString } from 'class-validator';
 
 export class TransferRequestDto {
   @ApiProperty({
@@ -25,5 +25,10 @@ export class TransferRequestDto {
   @IsNumberString()
   @IsNotEmpty()
   targetAmount: string;
+
+  @ApiProperty({ required: false, description: 'Monto que se debita de la cuenta origen antes de comisión' })
+  @IsOptional()
+  @IsNumberString()
+  sourceAmount?: string;
 }
 
