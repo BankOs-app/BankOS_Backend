@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { DRIZZLE } from '../../../../database/database.module';
 import type { DrizzleDb } from '../../../../database/database.module';
@@ -27,6 +28,27 @@ export class DrizzleCustomerRepository implements CustomerRepository {
       phone: customer.getPhone(),
       createdAt: customer.getCreatedAt(),
       updatedAt: customer.getUpdatedAt(),
+    });
+
+    // Auto-aprovisionar cuenta bancaria inicial activa con saldo 0.00 para el cliente registrado
+    const randomSuffix = Math.floor(10000000 + Math.random() * 90000000);
+    const prefix = info.schemaName.includes('bogota')
+      ? '10'
+      : (info.schemaName.includes('santander')
+          ? '90'
+          : (info.schemaName.includes('nu') ? '80' : '70'));
+    const accountNumber = `${prefix}${randomSuffix}`;
+    const tenantCurrency = info.schemaName.includes('santander') ? 'USD' : 'COP';
+
+    await this.db.insert(tables.accountsTable).values({
+      id: randomUUID(),
+      customerId: customer.getUserId(),
+      accountNumber,
+      currency: tenantCurrency,
+      balance: '0.00',
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
   }
 
