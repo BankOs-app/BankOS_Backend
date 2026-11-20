@@ -5,6 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { AuthenticatedUser } from '../../domain/value-objects/authenticated-user.vo';
+import { UserRole } from '../../domain/value-objects/user-role.enum';
 
 /**
  * Guard de Aislamiento Estricto por Tenant.
@@ -25,12 +26,7 @@ export class TenantMatchGuard implements CanActivate {
     }
 
     // Administrador General: acceso institucional a todas las entidades del sistema
-    const isGlobalAdmin =
-      user.role === 'admin' &&
-      (user.email?.toLowerCase().includes('bankos') ||
-        user.tenantSlug === 'bankos' ||
-        user.tenantSlug === 'global' ||
-        !user.tenantSlug);
+    const isGlobalAdmin = user.role === UserRole.SUPER_ADMIN;
 
     if (isGlobalAdmin) {
       return true;

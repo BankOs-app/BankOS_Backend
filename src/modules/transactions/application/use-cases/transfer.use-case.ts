@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Inject,
+  InternalServerErrorException,
   Injectable,
   NotFoundException,
   Optional,
@@ -14,6 +15,7 @@ import { EXCHANGE_RATE_REPOSITORY } from '../../../tenants/application/ports/exc
 import type { ExchangeRateRepository } from '../../../tenants/application/ports/exchange-rate.repository.port';
 import { ACCOUNT_REPOSITORY } from '../../../accounts/application/ports/account.repository.port';
 import type { AccountRepository } from '../../../accounts/application/ports/account.repository.port';
+import { Account } from '../../../accounts/domain/entities/account.entity';
 import { TRANSACTION_REPOSITORY } from '../ports/transaction.repository.port';
 import type { TransactionRepository } from '../ports/transaction.repository.port';
 import { LEDGER_REPOSITORY } from '../../../ledger/application/ports/ledger.repository.port';
@@ -29,12 +31,16 @@ import { FeeType } from '../../../tenants/domain/value-objects/fee-type.enum';
 import { TransferResponseDto } from '../dto/transfer-response.dto';
 import { RecordAuditLogUseCase } from '../../../audit/application/use-cases/record-audit-log.use-case';
 import { AuditAction } from '../../../audit/domain/value-objects/audit-action.enum';
+import { PG_POOL } from '../../../../database/database.module';
+import { TenantSchemaResolver } from '../../../../database/tenant-schema-resolver.service';
+import type { Pool } from 'pg';
 
 export interface TransferInput {
   tenantSlug: string;
   sourceAccountNumber: string;
   destinationAccountNumber: string;
   targetAmount: string;
+  sourceAmount?: string;
   idempotencyKey: string;
   userId?: string;
 }
@@ -72,6 +78,11 @@ export class TransferUseCase {
     private readonly outboxDispatcherService?: OutboxDispatcherService,
     @Optional()
     private readonly recordAuditLogUseCase?: RecordAuditLogUseCase,
+    @Optional()
+    @Inject(PG_POOL)
+    private readonly pool?: Pool,
+    @Optional()
+    private readonly schemaResolver?: TenantSchemaResolver,
   ) {}
 
   async execute(input: TransferInput): Promise<TransferResponseDto> {
@@ -100,11 +111,23 @@ export class TransferUseCase {
       );
     }
 
-    // 3. Validar cuenta destino (CA-HU-09-03: Si es de otro tenant o inexistente, 404 seguro)
-    const destinationAccount = await this.accountRepository.findByNumber(
-      tenant.getId(),
-      input.destinationAccountNumber.trim(),
-    );
+    // 3. Resolver la cuenta destino globalmente por su número único.
+    const destinationMatches = this.accountRepository.findByNumberAcrossTenants
+      ? await this.accountRepository.findByNumberAcrossTenants(
+          input.destinationAccountNumber.trim(),
+        )
+      : [
+          await this.accountRepository.findByNumber(
+            tenant.getId(),
+            input.destinationAccountNumber.trim(),
+          ),
+        ].filter((account) => account !== null);
+    if (destinationMatches.length > 1) {
+      throw new BadRequestException(
+        'El número de cuenta destino está duplicado y no identifica una única cuenta.',
+      );
+    }
+    const destinationAccount = destinationMatches[0] ?? null;
     if (!destinationAccount) {
       throw new NotFoundException(
         `Cuenta destino '${input.destinationAccountNumber}' no encontrada en esta institución.`,
@@ -124,7 +147,7 @@ export class TransferUseCase {
     }
 
     // 5. Validar monto positivo
-    const targetAmountNum = Number(input.targetAmount);
+    let targetAmountNum = Number(input.targetAmount);
     if (isNaN(targetAmountNum) || targetAmountNum <= 0) {
       throw new BadRequestException(
         'El monto que recibirá el destino debe ser estrictamente positivo y mayor a 0.',
@@ -174,6 +197,32 @@ export class TransferUseCase {
           throw new BadRequestException(
             `No existe una tasa de cambio configurada para el par '${sourceCurrency}' -> '${destinationCurrency}'.`,
           );
+        }
+      }
+    }
+
+    if (input.sourceAmount !== undefined) {
+      const requestedSourceAmount = Number(input.sourceAmount);
+      if (!Number.isFinite(requestedSourceAmount) || requestedSourceAmount <= 0) {
+        throw new BadRequestException('El monto de origen debe ser estrictamente positivo.');
+      }
+      sourceEquivalent = requestedSourceAmount;
+      if (sourceCurrency === destinationCurrency) {
+        targetAmountNum = requestedSourceAmount;
+      } else {
+        const directRate = await this.exchangeRateRepository.findRate(
+          tenant.getId(), sourceCurrency, destinationCurrency,
+        );
+        if (directRate) {
+          targetAmountNum = Number((requestedSourceAmount * Number(directRate.getRate())).toFixed(2));
+          rateAppliedStr = directRate.getRate();
+        } else {
+          const inverseRate = await this.exchangeRateRepository.findRate(
+            tenant.getId(), destinationCurrency, sourceCurrency,
+          );
+          if (!inverseRate) throw new BadRequestException(`No existe una tasa de cambio configurada para el par '${sourceCurrency}' -> '${destinationCurrency}'.`);
+          targetAmountNum = Number((requestedSourceAmount / Number(inverseRate.getRate())).toFixed(2));
+          rateAppliedStr = inverseRate.getRate();
         }
       }
     }
@@ -262,16 +311,18 @@ export class TransferUseCase {
 
     // 11. Ejecutar movimientos de balance
     sourceAccount.debit(totalDebitStr);
-    destinationAccount.credit(Number(input.targetAmount).toFixed(2));
+    destinationAccount.credit(targetAmountNum.toFixed(2));
 
     // 12. Crear cabecera de Transacción
     const transaction = Transaction.createTransfer({
       tenantId: tenant.getId(),
       sourceAccountId: sourceAccount.getId(),
       destinationAccountId: destinationAccount.getId(),
+      sourceTenantId: sourceAccount.getTenantId(),
+      destinationTenantId: destinationAccount.getTenantId(),
       originalAmount: totalDebitStr,
       originalCurrency: sourceCurrency,
-      convertedAmount: Number(input.targetAmount).toFixed(2),
+      convertedAmount: targetAmountNum.toFixed(2),
       destinationCurrency: destinationCurrency,
       exchangeRateApplied: rateAppliedStr,
       feeAmount: feeAmountStr,
@@ -293,7 +344,7 @@ export class TransferUseCase {
       transactionId: transaction.getId(),
       accountId: destinationAccount.getId(),
       type: LedgerEntryType.CREDIT,
-      amount: Number(input.targetAmount).toFixed(2),
+      amount: targetAmountNum.toFixed(2),
       currency: destinationCurrency,
     });
 
@@ -307,7 +358,7 @@ export class TransferUseCase {
         sourceCurrency: sourceCurrency,
         destinationAccountNumber: destinationAccount.getAccountNumber(),
         destinationCurrency: destinationCurrency,
-        targetAmount: Number(input.targetAmount).toFixed(2),
+        targetAmount: targetAmountNum.toFixed(2),
         totalDebited: totalDebitStr,
         feeAmount: feeAmountStr,
         exchangeRateApplied: rateAppliedStr,
@@ -316,13 +367,29 @@ export class TransferUseCase {
     });
 
     // 15. Persistir de forma consistente
-    await this.accountRepository.update(sourceAccount);
-    await this.accountRepository.update(destinationAccount);
-    await this.transactionRepository.save(transaction);
-    await this.ledgerRepository.save(debitLedger);
-    await this.ledgerRepository.save(creditLedger);
+    let sourceNewBalance = sourceAccount.getBalance();
+    if (sourceAccount.getTenantId() !== destinationAccount.getTenantId()) {
+      sourceNewBalance = await this.persistCrossTenantTransfer({
+        sourceAccount,
+        destinationAccount,
+        transaction,
+        debitLedger,
+        creditLedger,
+        outboxEvent,
+        totalDebitStr,
+        destinationAmount: targetAmountNum.toFixed(2),
+      });
+    } else {
+      await this.accountRepository.update(sourceAccount);
+      await this.accountRepository.update(destinationAccount);
+      await this.transactionRepository.save(transaction);
+      await this.ledgerRepository.save(debitLedger);
+      await this.ledgerRepository.save(creditLedger);
+      if (this.outboxRepository) {
+        await this.outboxRepository.save(outboxEvent);
+      }
+    }
     if (this.outboxRepository) {
-      await this.outboxRepository.save(outboxEvent);
       if (this.outboxDispatcherService) {
         setImmediate(() => {
           this.outboxDispatcherService!.processSingleEvent(outboxEvent).catch(() => {});
@@ -337,15 +404,168 @@ export class TransferUseCase {
     response.sourceCurrency = sourceCurrency;
     response.destinationAccountNumber = destinationAccount.getAccountNumber();
     response.destinationCurrency = destinationCurrency;
-    response.targetAmount = Number(input.targetAmount).toFixed(2);
+    response.targetAmount = targetAmountNum.toFixed(2);
     response.sourceEquivalentAmount = sourceEquivalentStr;
     response.exchangeRateApplied = rateAppliedStr;
     response.feeAmount = feeAmountStr;
     response.totalDebited = totalDebitStr;
-    response.sourceNewBalance = sourceAccount.getBalance();
+    response.sourceNewBalance = sourceNewBalance;
     response.status = transaction.getStatus();
     response.createdAt = transaction.getCreatedAt().toISOString();
 
     return response;
+  }
+
+  private async persistCrossTenantTransfer(input: {
+    sourceAccount: Account;
+    destinationAccount: Account;
+    transaction: Transaction;
+    debitLedger: LedgerEntry;
+    creditLedger: LedgerEntry;
+    outboxEvent: OutboxEvent;
+    totalDebitStr: string;
+    destinationAmount: string;
+  }): Promise<string> {
+    if (!this.pool || !this.schemaResolver) {
+      throw new InternalServerErrorException(
+        'La persistencia interbancaria no está configurada.',
+      );
+    }
+
+    const sourceSchema = this.quoteSchema(
+      (await this.schemaResolver.resolve(input.sourceAccount.getTenantId())).schemaName,
+    );
+    const destinationSchema = this.quoteSchema(
+      (await this.schemaResolver.resolve(input.destinationAccount.getTenantId())).schemaName,
+    );
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+      const debit = await client.query(
+        `UPDATE ${sourceSchema}.accounts
+         SET balance = balance - $1::numeric, updated_at = NOW()
+         WHERE id = $2 AND status = 'ACTIVE' AND balance >= $1::numeric
+         RETURNING balance`,
+        [input.totalDebitStr, input.sourceAccount.getId()],
+      );
+      if (debit.rowCount !== 1) {
+        throw new BadRequestException(
+          'La cuenta de origen cambió de estado o ya no tiene saldo suficiente.',
+        );
+      }
+
+      const credit = await client.query(
+        `UPDATE ${destinationSchema}.accounts
+         SET balance = balance + $1::numeric, updated_at = NOW()
+         WHERE id = $2 AND status = 'ACTIVE'
+         RETURNING id`,
+        [input.destinationAmount, input.destinationAccount.getId()],
+      );
+      if (credit.rowCount !== 1) {
+        throw new BadRequestException(
+          'La cuenta destino dejó de estar activa durante la operación.',
+        );
+      }
+
+      const transactionValues = [
+        input.transaction.getId(),
+        input.transaction.getType(),
+        input.sourceAccount.getId(),
+        input.destinationAccount.getId(),
+        input.sourceAccount.getTenantId(),
+        input.destinationAccount.getTenantId(),
+        input.transaction.getOriginalAmount(),
+        input.transaction.getOriginalCurrency(),
+        input.transaction.getConvertedAmount() ?? null,
+        input.transaction.getDestinationCurrency() ?? null,
+        input.transaction.getExchangeRateApplied() ?? null,
+        input.transaction.getFeeAmount() ?? null,
+        input.transaction.getStatus(),
+        input.transaction.getIdempotencyKey(),
+        input.transaction.getCreatedAt(),
+      ];
+      const transactionInsert = `INSERT INTO %SCHEMA%.transactions
+        (id, type, source_account_id, destination_account_id, source_tenant_id,
+         destination_tenant_id, original_amount, original_currency, converted_amount,
+         destination_currency, exchange_rate_applied, fee_amount, status,
+         idempotency_key, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`;
+      await client.query(
+        transactionInsert.replace('%SCHEMA%', sourceSchema),
+        transactionValues,
+      );
+
+      const destinationMirrorValues = [...transactionValues];
+      destinationMirrorValues[2] = null;
+      await client.query(
+        transactionInsert.replace('%SCHEMA%', destinationSchema),
+        destinationMirrorValues,
+      );
+
+      await client.query(
+        `INSERT INTO ${sourceSchema}.ledger_entries
+          (id, transaction_id, account_id, type, amount, currency, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          input.debitLedger.getId(),
+          input.debitLedger.getTransactionId(),
+          input.debitLedger.getAccountId(),
+          input.debitLedger.getType(),
+          input.debitLedger.getAmount(),
+          input.debitLedger.getCurrency(),
+          input.debitLedger.getCreatedAt(),
+        ],
+      );
+      await client.query(
+        `INSERT INTO ${destinationSchema}.ledger_entries
+          (id, transaction_id, account_id, type, amount, currency, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          input.creditLedger.getId(),
+          input.creditLedger.getTransactionId(),
+          input.creditLedger.getAccountId(),
+          input.creditLedger.getType(),
+          input.creditLedger.getAmount(),
+          input.creditLedger.getCurrency(),
+          input.creditLedger.getCreatedAt(),
+        ],
+      );
+
+      if (this.outboxRepository) {
+        await client.query(
+          `INSERT INTO ${sourceSchema}.outbox_events
+            (id, event_type, payload, status, attempts, max_attempts,
+             next_retry_at, last_error, created_at, updated_at)
+           VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9, NOW())`,
+          [
+            input.outboxEvent.getId(),
+            input.outboxEvent.getEventType(),
+            JSON.stringify(input.outboxEvent.getPayload()),
+            input.outboxEvent.getStatus(),
+            input.outboxEvent.getAttempts(),
+            input.outboxEvent.getMaxAttempts(),
+            input.outboxEvent.getNextRetryAt() ?? null,
+            input.outboxEvent.getLastError() ?? null,
+            input.outboxEvent.getCreatedAt(),
+          ],
+        );
+      }
+
+      await client.query('COMMIT');
+      return String(debit.rows[0].balance);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private quoteSchema(schemaName: string): string {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) {
+      throw new InternalServerErrorException('Nombre de esquema bancario inválido.');
+    }
+    return `"${schemaName}"`;
   }
 }

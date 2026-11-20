@@ -72,14 +72,18 @@ export class CreateAccountUseCase {
     const accountNumber =
       input.accountNumber?.trim() || this.generateAccountNumber();
 
-    // 5. Criterio CA-HU-05-03: Verificar que el número de cuenta no esté duplicado en el tenant
-    const existingAccount = await this.accountRepository.findByNumber(
-      tenantId,
-      accountNumber,
-    );
-    if (existingAccount) {
+    // Los números de cuenta se identifican globalmente entre instituciones.
+    const existingAccountMatches = this.accountRepository.findByNumberAcrossTenants
+      ? await this.accountRepository.findByNumberAcrossTenants(accountNumber)
+      : [];
+    const existingAccounts = this.accountRepository.findByNumberAcrossTenants
+      ? existingAccountMatches
+      : [await this.accountRepository.findByNumber(tenantId, accountNumber)].filter(
+          (account) => account !== null,
+        );
+    if (existingAccounts.length > 0) {
       throw new ConflictException(
-        `El número de cuenta '${accountNumber}' ya existe en esta institución.`,
+        `El número de cuenta '${accountNumber}' ya está asignado a una cuenta bancaria.`,
       );
     }
 

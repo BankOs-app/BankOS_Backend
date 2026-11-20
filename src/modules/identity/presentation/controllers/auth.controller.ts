@@ -245,7 +245,7 @@ export class AuthController {
       } catch (_) {}
     }
     if (!fullName) {
-      if (user.getRole() === UserRole.ADMIN) {
+      if (user.getRole() === UserRole.ADMIN || user.getRole() === UserRole.SUPER_ADMIN) {
         fullName = email.includes('bankos') ? 'Luigui Garizado' : `Administrador ${tenant.getName()}`;
       } else {
         const localPart = email.split('@')[0];

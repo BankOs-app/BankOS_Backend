@@ -61,11 +61,23 @@ export class PreviewTransferUseCase {
       );
     }
 
-    // 3. Validar cuenta destino en el tenant (CA-HU-09-03: rechazar cuentas ajenas sin revelar datos)
-    const destinationAccount = await this.accountRepository.findByNumber(
-      tenant.getId(),
-      input.destinationAccountNumber.trim(),
-    );
+    // 3. Resolver el destino por número en todos los esquemas activos.
+    const destinationMatches = this.accountRepository.findByNumberAcrossTenants
+      ? await this.accountRepository.findByNumberAcrossTenants(
+          input.destinationAccountNumber.trim(),
+        )
+      : [
+          await this.accountRepository.findByNumber(
+            tenant.getId(),
+            input.destinationAccountNumber.trim(),
+          ),
+        ].filter((account) => account !== null);
+    if (destinationMatches.length > 1) {
+      throw new BadRequestException(
+        'El número de cuenta destino está duplicado y no identifica una única cuenta.',
+      );
+    }
+    const destinationAccount = destinationMatches[0] ?? null;
     if (!destinationAccount) {
       throw new NotFoundException(
         `Cuenta destino '${input.destinationAccountNumber}' no encontrada en esta institución.`,

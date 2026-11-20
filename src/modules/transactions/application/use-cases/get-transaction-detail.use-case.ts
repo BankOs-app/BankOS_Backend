@@ -101,6 +101,8 @@ export class GetTransactionDetailUseCase {
     detail.type = tx.getType();
     detail.sourceAccountId = tx.getSourceAccountId();
     detail.destinationAccountId = tx.getDestinationAccountId();
+    detail.sourceTenantId = tx.getSourceTenantId();
+    detail.destinationTenantId = tx.getDestinationTenantId();
     detail.originalAmount = tx.getOriginalAmount();
     detail.originalCurrency = tx.getOriginalCurrency();
     detail.convertedAmount = tx.getConvertedAmount();

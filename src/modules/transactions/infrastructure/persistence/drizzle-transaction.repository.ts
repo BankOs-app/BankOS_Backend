@@ -32,6 +32,9 @@ export class DrizzleTransactionRepository implements TransactionRepository {
       type: transaction.getType(),
       sourceAccountId: transaction.getSourceAccountId() ?? null,
       destinationAccountId: transaction.getDestinationAccountId() ?? null,
+      sourceTenantId: transaction.getSourceTenantId() ?? transaction.getTenantId(),
+      destinationTenantId:
+        transaction.getDestinationTenantId() ?? transaction.getTenantId(),
       originalAmount: transaction.getOriginalAmount(),
       originalCurrency: transaction.getOriginalCurrency(),
       convertedAmount: transaction.getConvertedAmount() ?? null,
@@ -188,6 +191,8 @@ export class DrizzleTransactionRepository implements TransactionRepository {
       type: row.type as TransactionType,
       sourceAccountId: row.sourceAccountId ?? undefined,
       destinationAccountId: row.destinationAccountId ?? undefined,
+      sourceTenantId: row.sourceTenantId ?? tenantId,
+      destinationTenantId: row.destinationTenantId ?? tenantId,
       originalAmount: row.originalAmount,
       originalCurrency: row.originalCurrency as Currency,
       convertedAmount: row.convertedAmount ?? undefined,

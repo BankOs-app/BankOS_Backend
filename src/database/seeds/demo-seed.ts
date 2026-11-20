@@ -7,6 +7,52 @@ function hashPin(plain: string): string {
   return `${salt}:${hash}`;
 }
 
+export async function migrateCrossTenantTransferSchema(pool: Pool): Promise<void> {
+  const { rows } = await pool.query(
+    `SELECT schema_name FROM public.tenants WHERE status = 'ACTIVE'`,
+  );
+
+  for (const row of rows) {
+    const schemaName = String(row.schema_name);
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) continue;
+    const table = await pool.query(
+      'SELECT to_regclass($1) IS NOT NULL AS exists',
+      [`${schemaName}.transactions`],
+    );
+    if (!table.rows[0]?.exists) continue;
+
+    await pool.query(`
+      ALTER TABLE "${schemaName}".transactions
+        ADD COLUMN IF NOT EXISTS source_tenant_id VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS destination_tenant_id VARCHAR(100);
+    `);
+
+    const foreignKeys = await pool.query(
+      `SELECT c.conname
+       FROM pg_constraint c
+       JOIN pg_class t ON t.oid = c.conrelid
+       JOIN pg_namespace n ON n.oid = t.relnamespace
+       WHERE n.nspname = $1 AND t.relname = 'transactions' AND c.contype = 'f'
+         AND pg_get_constraintdef(c.oid) LIKE 'FOREIGN KEY (destination_account_id)%'`,
+      [schemaName],
+    );
+    for (const foreignKey of foreignKeys.rows) {
+      const constraintName = String(foreignKey.conname).replace(/"/g, '""');
+      await pool.query(
+        `ALTER TABLE "${schemaName}".transactions DROP CONSTRAINT "${constraintName}"`,
+      );
+    }
+
+    await pool.query(
+      `UPDATE "${schemaName}".transactions
+       SET source_tenant_id = COALESCE(source_tenant_id, $1),
+           destination_tenant_id = COALESCE(destination_tenant_id, $1)
+       WHERE source_tenant_id IS NULL OR destination_tenant_id IS NULL`,
+      [row.id],
+    );
+  }
+}
+
 /**
  * Script de Datos Semilla para Demostración Oficial de BankOS (Schema-per-Tenant Completo).
  *
@@ -138,7 +184,9 @@ export async function runSeed(existingPool?: Pool) {
           id UUID PRIMARY KEY,
           type VARCHAR(20) NOT NULL,
           source_account_id UUID REFERENCES "${schemaName}".accounts(id) ON DELETE SET NULL,
-          destination_account_id UUID REFERENCES "${schemaName}".accounts(id) ON DELETE CASCADE,
+          destination_account_id UUID,
+          source_tenant_id VARCHAR(100),
+          destination_tenant_id VARCHAR(100),
           original_amount NUMERIC(18, 2) NOT NULL,
           original_currency VARCHAR(3) NOT NULL,
           converted_amount NUMERIC(18, 2),
@@ -235,6 +283,7 @@ export async function runSeed(existingPool?: Pool) {
     await createSchemaTables('tenant_banco_santander');
     await createSchemaTables('tenant_banco_lombia');
     await createSchemaTables('tenant_banco_nu');
+    await migrateCrossTenantTransferSchema(pool);
 
     const defaultPasswordHash = hashPin('1234');
 
@@ -329,9 +378,9 @@ export async function runSeed(existingPool?: Pool) {
       INSERT INTO "tenant_banco_lombia".users (id, email, role, status, password_hash)
       VALUES 
         ('${adminLombiaId}', 'admin@bancolombia.com', 'admin', 'ACTIVE', '${defaultPasswordHash}'),
-        ('${adminBankosId}', 'admin@bankos.com', 'admin', 'ACTIVE', '${defaultPasswordHash}'),
+        ('${adminBankosId}', 'admin@bankos.com', 'super_admin', 'ACTIVE', '${defaultPasswordHash}'),
         ('${userLombiaId}', 'cliente@bancolombia.com', 'customer', 'ACTIVE', '${defaultPasswordHash}')
-      ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+      ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role;
 
       INSERT INTO "tenant_banco_lombia".customers (id, user_id, full_name, document_number, email, phone)
       VALUES 
@@ -413,6 +462,12 @@ export async function autoSeedIfEmpty() {
         'SELECT COUNT(*) as count FROM public.tenants',
       );
       if (parseInt(countCheck.rows[0]?.count ?? '0', 10) > 0) {
+        await migrateCrossTenantTransferSchema(pool);
+        await pool.query(`
+          UPDATE "tenant_banco_lombia".users
+          SET role = 'super_admin', updated_at = NOW()
+          WHERE email = 'admin@bankos.com' AND role <> 'super_admin';
+        `);
         return;
       }
     }

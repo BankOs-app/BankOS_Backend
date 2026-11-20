@@ -31,6 +31,18 @@ export class TransactionItemDto {
   destinationAccountId?: string;
 
   @ApiProperty({
+    description: 'Tenant que contiene la cuenta de origen',
+    required: false,
+  })
+  sourceTenantId?: string;
+
+  @ApiProperty({
+    description: 'Tenant que contiene la cuenta de destino',
+    required: false,
+  })
+  destinationTenantId?: string;
+
+  @ApiProperty({
     description: 'Monto original de la operación en moneda de origen',
     example: '100.00',
   })

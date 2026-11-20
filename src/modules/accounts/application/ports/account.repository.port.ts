@@ -7,6 +7,7 @@ export interface AccountRepository {
   update(account: Account): Promise<void>;
   findById(id: string, tenantId?: string): Promise<Account | null>;
   findByNumber(tenantId: string, accountNumber: string): Promise<Account | null>;
+  findByNumberAcrossTenants?(accountNumber: string): Promise<Account[]>;
   listByCustomer(customerId: string, tenantId?: string): Promise<Account[]>;
   listByTenant(tenantId: string): Promise<Account[]>;
 }
