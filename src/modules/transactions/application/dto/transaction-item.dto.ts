@@ -113,6 +113,13 @@ export class TransactionItemDto {
   feeAmount?: string;
 
   @ApiProperty({
+    description: 'Total debitado de la cuenta origen incluyendo comisiones (si aplica)',
+    required: false,
+    example: '102.00',
+  })
+  totalDebited?: string;
+
+  @ApiProperty({
     description: 'Indica si la transacción tuvo cobro de comisión (etiqueta visual en UI - CA-HU-11-04)',
     example: true,
   })

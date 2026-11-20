@@ -675,7 +675,7 @@ describe('Transfer Operations (HU-09)', () => {
 
       const savedTx = transactionRepo.save.mock.calls[0][0];
       expect(savedTx.getType()).toBe(TransactionType.TRANSFER);
-      expect(savedTx.getOriginalAmount()).toBe('102000.00');
+      expect(savedTx.getOriginalAmount()).toBe('100000.00');
       expect(savedTx.getConvertedAmount()).toBe('100000.00');
     });
 

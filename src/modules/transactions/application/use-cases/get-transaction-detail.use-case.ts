@@ -109,6 +109,10 @@ export class GetTransactionDetailUseCase {
     detail.destinationCurrency = tx.getDestinationCurrency();
     detail.exchangeRateApplied = tx.getExchangeRateApplied();
     detail.feeAmount = tx.getFeeAmount();
+    detail.totalDebited =
+      feeVal > 0
+        ? (Number(tx.getOriginalAmount()) + feeVal).toFixed(2)
+        : tx.getOriginalAmount();
     detail.hasFee = feeVal > 0;
     detail.hasConversion = isCrossCurrency;
     detail.status = tx.getStatus();

@@ -320,7 +320,7 @@ export class TransferUseCase {
       destinationAccountId: destinationAccount.getId(),
       sourceTenantId: sourceAccount.getTenantId(),
       destinationTenantId: destinationAccount.getTenantId(),
-      originalAmount: totalDebitStr,
+      originalAmount: sourceEquivalentStr,
       originalCurrency: sourceCurrency,
       convertedAmount: targetAmountNum.toFixed(2),
       destinationCurrency: destinationCurrency,

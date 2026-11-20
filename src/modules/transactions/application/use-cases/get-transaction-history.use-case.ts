@@ -180,6 +180,10 @@ export class GetTransactionHistoryUseCase {
         dto.destinationCurrency = tx.getDestinationCurrency();
         dto.exchangeRateApplied = tx.getExchangeRateApplied();
         dto.feeAmount = tx.getFeeAmount();
+        dto.totalDebited =
+          feeVal > 0
+            ? (Number(tx.getOriginalAmount()) + feeVal).toFixed(2)
+            : tx.getOriginalAmount();
         dto.hasFee = feeVal > 0;
         dto.hasConversion = isCrossCurrency;
         dto.status = tx.getStatus();
